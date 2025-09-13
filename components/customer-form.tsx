@@ -23,12 +23,9 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     last_name: customer?.last_name || "",
     email: customer?.email || "",
     phone: customer?.phone || "",
-    address: customer?.address || "",
     city: customer?.city || "",
     state: customer?.state || "",
     zip_code: customer?.zip_code || "",
-    emergency_contact_name: customer?.emergency_contact_name || "",
-    emergency_contact_phone: customer?.emergency_contact_phone || "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -116,25 +113,14 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="(555) 123-4567"
+                  placeholder="+27 12 345 6789"
                 />
               </div>
             </div>
           </div>
 
-          {/* Address Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Address Information</h3>
-            <div className="space-y-2">
-              <Label htmlFor="address">Street Address</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                placeholder="123 Main Street"
-              />
-            </div>
-
+            <h3 className="text-lg font-medium">Location Information</h3>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="city">City</Label>
@@ -146,49 +132,22 @@ export function CustomerForm({ customer }: CustomerFormProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="state">State</Label>
+                <Label htmlFor="state">Province</Label>
                 <Input
                   id="state"
                   value={formData.state}
                   onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  placeholder="CA"
+                  placeholder="Gauteng"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="zip_code">ZIP Code</Label>
+                <Label htmlFor="zip_code">Postal Code</Label>
                 <Input
                   id="zip_code"
                   value={formData.zip_code}
                   onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
-                  placeholder="12345"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Emergency Contact */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Emergency Contact</h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="emergency_contact_name">Contact Name</Label>
-                <Input
-                  id="emergency_contact_name"
-                  value={formData.emergency_contact_name}
-                  onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
-                  placeholder="John Doe"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="emergency_contact_phone">Contact Phone</Label>
-                <Input
-                  id="emergency_contact_phone"
-                  type="tel"
-                  value={formData.emergency_contact_phone}
-                  onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
-                  placeholder="(555) 123-4567"
+                  placeholder="2000"
                 />
               </div>
             </div>
