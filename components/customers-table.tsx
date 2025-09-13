@@ -112,7 +112,6 @@ export async function CustomersTable() {
 
             <CardContent className="pt-0">
               <div className="space-y-2">
-                {customer.city && <p className="text-xs text-muted-foreground">{customer.city}</p>}
 
                 {activeRentals.length > 0 ? (
                   <div className="space-y-1">
