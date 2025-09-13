@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface CustomerFormProps {
   customer?: any
@@ -29,8 +30,9 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
   const [availableUnits, setAvailableUnits] = useState<any[]>([])
   const [selectedUnitId, setSelectedUnitId] = useState("")
-  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0])
-  const [securityDeposit, setSecurityDeposit] = useState("")
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
+  const [leaseStatus, setLeaseStatus] = useState("")
+  const [firstMonthPayment, setFirstMonthPayment] = useState(false)
   const [assignUnit, setAssignUnit] = useState(false)
 
   useEffect(() => {
@@ -80,9 +82,8 @@ export function CustomerForm({ customer }: CustomerFormProps) {
             {
               customer_id: customerId,
               unit_id: selectedUnitId,
-              start_date: startDate,
+              start_date: paymentDate,
               monthly_rate: selectedUnit.monthly_rate,
-              security_deposit: securityDeposit ? Number.parseFloat(securityDeposit) : 0,
               status: "active",
             },
           ])
@@ -217,27 +218,37 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="start_date">Start Date</Label>
+                      <Label htmlFor="payment_date">Payment Date</Label>
                       <Input
-                        id="start_date"
+                        id="payment_date"
                         type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
                         required={assignUnit}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="security_deposit">Security Deposit (R)</Label>
-                      <Input
-                        id="security_deposit"
-                        type="number"
-                        step="0.01"
-                        value={securityDeposit}
-                        onChange={(e) => setSecurityDeposit(e.target.value)}
-                        placeholder="0.00"
-                      />
+                      <Label htmlFor="lease_status">Lease Status</Label>
+                      <Select value={leaseStatus} onValueChange={setLeaseStatus} required={assignUnit}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select lease status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sent">Sent</SelectItem>
+                          <SelectItem value="signed">Signed</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="first_month_payment"
+                      checked={firstMonthPayment}
+                      onCheckedChange={setFirstMonthPayment}
+                    />
+                    <Label htmlFor="first_month_payment">1st Month Payment</Label>
                   </div>
                 </div>
               )}
@@ -245,7 +256,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           )}
 
           <div className="flex gap-4">
-            <Button type="submit" disabled={isLoading || (assignUnit && !selectedUnitId)}>
+            <Button type="submit" disabled={isLoading || (assignUnit && (!selectedUnitId || !leaseStatus))}>
               {isLoading
                 ? "Saving..."
                 : customer
