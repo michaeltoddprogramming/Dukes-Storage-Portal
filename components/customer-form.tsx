@@ -2,13 +2,15 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 
 interface CustomerFormProps {
@@ -23,10 +25,35 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     last_name: customer?.last_name || "",
     email: customer?.email || "",
     phone: customer?.phone || "",
-    city: customer?.city || "",
-    state: customer?.state || "",
-    zip_code: customer?.zip_code || "",
   })
+
+  const [availableUnits, setAvailableUnits] = useState<any[]>([])
+  const [selectedUnitId, setSelectedUnitId] = useState("")
+  const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0])
+  const [securityDeposit, setSecurityDeposit] = useState("")
+  const [assignUnit, setAssignUnit] = useState(false)
+
+  useEffect(() => {
+    if (!customer) {
+      const fetchAvailableUnits = async () => {
+        const supabase = createClient()
+        const { data: unitsData } = await supabase
+          .from("storage_units")
+          .select(`
+            *,
+            facilities!inner(name)
+          `)
+          .eq("status", "available")
+          .order("unit_number")
+
+        if (unitsData) {
+          setAvailableUnits(unitsData)
+        }
+      }
+
+      fetchAvailableUnits()
+    }
+  }, [customer])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,14 +66,44 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       if (customer) {
         result = await supabase.from("customers").update(formData).eq("id", customer.id)
       } else {
-        result = await supabase.from("customers").insert([formData])
+        result = await supabase.from("customers").insert([formData]).select()
+
+        if (result.error) throw result.error
+
+        // If unit assignment is requested, create rental
+        if (assignUnit && selectedUnitId && result.data?.[0]) {
+          const customerId = result.data[0].id
+          const selectedUnit = availableUnits.find((unit) => unit.id === selectedUnitId)
+
+          // Create rental record
+          const { error: rentalError } = await supabase.from("rentals").insert([
+            {
+              customer_id: customerId,
+              unit_id: selectedUnitId,
+              start_date: startDate,
+              monthly_rate: selectedUnit.monthly_rate,
+              security_deposit: securityDeposit ? Number.parseFloat(securityDeposit) : 0,
+              status: "active",
+            },
+          ])
+
+          if (rentalError) throw rentalError
+
+          // Update unit status to occupied
+          const { error: unitError } = await supabase
+            .from("storage_units")
+            .update({ status: "occupied" })
+            .eq("id", selectedUnitId)
+
+          if (unitError) throw unitError
+        }
       }
 
       if (result.error) throw result.error
 
       toast({
         title: "Success",
-        description: `Customer ${customer ? "updated" : "created"} successfully`,
+        description: `Customer ${customer ? "updated" : "created"} successfully${assignUnit ? " and unit assigned" : ""}`,
       })
 
       router.push("/customers")
@@ -69,9 +126,8 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Personal Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Personal Information</h3>
+            <h3 className="text-lg font-medium">Customer Information</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="first_name">First Name</Label>
@@ -119,43 +175,84 @@ export function CustomerForm({ customer }: CustomerFormProps) {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Location Information</h3>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="city">City</Label>
-                <Input
-                  id="city"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+          {!customer && availableUnits.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="assign_unit"
+                  checked={assignUnit}
+                  onChange={(e) => setAssignUnit(e.target.checked)}
+                  className="rounded border-gray-300"
                 />
+                <Label htmlFor="assign_unit" className="text-lg font-medium">
+                  Assign Storage Unit
+                </Label>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="state">Province</Label>
-                <Input
-                  id="state"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  placeholder="Gauteng"
-                />
-              </div>
+              {assignUnit && (
+                <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+                  <div className="space-y-2">
+                    <Label htmlFor="unit">Select Available Unit</Label>
+                    <Select value={selectedUnitId} onValueChange={setSelectedUnitId} required={assignUnit}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableUnits.map((unit) => (
+                          <SelectItem key={unit.id} value={unit.id}>
+                            <div className="flex items-center justify-between w-full">
+                              <span>
+                                Unit {unit.unit_number} - {unit.dimensions}
+                              </span>
+                              <Badge variant="outline" className="ml-2">
+                                R{unit.monthly_rate}/mo
+                              </Badge>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="zip_code">Postal Code</Label>
-                <Input
-                  id="zip_code"
-                  value={formData.zip_code}
-                  onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
-                  placeholder="2000"
-                />
-              </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="start_date">Start Date</Label>
+                      <Input
+                        id="start_date"
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        required={assignUnit}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="security_deposit">Security Deposit (R)</Label>
+                      <Input
+                        id="security_deposit"
+                        type="number"
+                        step="0.01"
+                        value={securityDeposit}
+                        onChange={(e) => setSecurityDeposit(e.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
 
           <div className="flex gap-4">
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Saving..." : customer ? "Update Customer" : "Create Customer"}
+            <Button type="submit" disabled={isLoading || (assignUnit && !selectedUnitId)}>
+              {isLoading
+                ? "Saving..."
+                : customer
+                  ? "Update Customer"
+                  : assignUnit
+                    ? "Create Customer & Assign Unit"
+                    : "Create Customer"}
             </Button>
             <Button type="button" variant="outline" onClick={() => router.push("/customers")}>
               Cancel
