@@ -80,9 +80,6 @@ export async function CustomersTable() {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
-                        {activeRentals.length} UNIT{activeRentals.length !== 1 ? "S" : ""}
-                      </Badge>
                       <div className="flex flex-wrap gap-1">
                         {sortedActiveRentals.map((rental) => (
                           <span key={rental.id} className="text-sm font-bold text-blue-800">
