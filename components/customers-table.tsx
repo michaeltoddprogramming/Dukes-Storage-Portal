@@ -2,9 +2,9 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Phone, Mail, Plus } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
+import { Plus, Mail } from "lucide-react" // Import Plus and Mail icons
 
 export async function CustomersTable() {
   const supabase = await createClient()
@@ -76,6 +76,40 @@ export async function CustomersTable() {
         return (
           <Card key={customer.id} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-2">
+              {activeRentals.length > 0 ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-blue-600 hover:bg-blue-700 text-white font-bold">
+                        {activeRentals.length} UNIT{activeRentals.length !== 1 ? "S" : ""}
+                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        {sortedActiveRentals.map((rental) => (
+                          <span key={rental.id} className="text-sm font-bold text-blue-800">
+                            {rental.storage_units.unit_number}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-green-700">{formatCurrency(totalMonthlyRent)}/mo</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2 mb-3">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="secondary" className="font-bold">
+                      NO UNIT ASSIGNED
+                    </Badge>
+                    <Link href={`/customers/${customer.id}/assign-unit`}>
+                      <Button variant="outline" size="sm" className="h-6 px-2 text-xs bg-transparent">
+                        <Plus className="h-3 w-3 mr-1" />
+                        Assign
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-lg leading-tight">
@@ -87,23 +121,14 @@ export async function CustomersTable() {
                       <span className="truncate">{customer.email}</span>
                     </div>
                     {customer.phone && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Phone className="h-3 w-3 flex-shrink-0" />
-                        <span>{customer.phone}</span>
-                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">{customer.phone}</div>
                     )}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 ml-2">
-                  <Badge
-                    variant={activeRentals.length > 0 ? "default" : "secondary"}
-                    className={`text-xs font-semibold ${activeRentals.length > 0 ? "bg-green-600 hover:bg-green-700" : ""}`}
-                  >
-                    {activeRentals.length} Unit{activeRentals.length !== 1 ? "s" : ""}
-                  </Badge>
                   <Link href={`/customers/${customer.id}/edit`}>
                     <Button variant="outline" size="sm" className="h-7 px-2 bg-transparent">
-                      <Edit className="h-3 w-3" />
+                      {/* Edit icon */}
                     </Button>
                   </Link>
                 </div>
@@ -111,43 +136,6 @@ export async function CustomersTable() {
             </CardHeader>
 
             <CardContent className="pt-0">
-              <div className="space-y-2">
-
-                {activeRentals.length > 0 ? (
-                  <div className="space-y-1">
-                    <div className="bg-muted/30 rounded-md p-2 space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">ASSIGNED UNITS:</p>
-                      {sortedActiveRentals.map((rental) => (
-                        <div key={rental.id} className="flex justify-between text-sm">
-                          <span className="font-medium text-foreground">Unit {rental.storage_units.unit_number}</span>
-                          <span className="font-semibold text-green-600">
-                            {formatCurrency(rental.storage_units.monthly_rate)}/mo
-                          </span>
-                        </div>
-                      ))}
-                      {activeRentals.length > 1 && (
-                        <div className="border-t pt-1 mt-2">
-                          <div className="flex justify-between text-sm font-bold">
-                            <span>Total Monthly</span>
-                            <span className="text-green-600">{formatCurrency(totalMonthlyRent)}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">No active rentals</p>
-                    <Link href={`/customers/${customer.id}/assign-unit`}>
-                      <Button variant="outline" size="sm" className="h-6 px-2 text-xs bg-transparent">
-                        <Plus className="h-3 w-3 mr-1" />
-                        Assign Unit
-                      </Button>
-                    </Link>
-                  </div>
-                )}
-              </div>
-
               <div className="mt-2 pt-2 border-t">
                 <p className="text-xs text-muted-foreground">
                   Since {new Date(customer.created_at).toLocaleDateString()}
