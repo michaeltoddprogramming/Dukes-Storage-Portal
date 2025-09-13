@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Building, Users, DollarSign, AlertTriangle } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
 
 export async function DashboardStats() {
   const supabase = await createClient()
@@ -47,7 +48,7 @@ export async function DashboardStats() {
     },
     {
       title: "Monthly Revenue",
-      value: `$${monthlyRevenue.toLocaleString()}`,
+      value: formatCurrency(monthlyRevenue),
       icon: DollarSign,
       description: "Current month",
       trend: "high",

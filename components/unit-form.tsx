@@ -152,7 +152,7 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="monthly_rate">Monthly Rate ($)</Label>
+              <Label htmlFor="monthly_rate">Monthly Rate (R)</Label>
               <Input
                 id="monthly_rate"
                 type="number"

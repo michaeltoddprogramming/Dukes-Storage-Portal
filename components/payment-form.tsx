@@ -111,7 +111,7 @@ export function PaymentForm({ rentals }: PaymentFormProps) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount ($)</Label>
+              <Label htmlFor="amount">Amount (R)</Label>
               <Input
                 id="amount"
                 type="number"

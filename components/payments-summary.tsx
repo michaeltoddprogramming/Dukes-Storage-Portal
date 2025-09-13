@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DollarSign, TrendingUp, Calendar, CreditCard } from "lucide-react"
+import { formatCurrency } from "@/lib/utils"
 
 export async function PaymentsSummary() {
   const supabase = await createClient()
@@ -42,7 +43,7 @@ export async function PaymentsSummary() {
   const stats = [
     {
       title: "This Month",
-      value: `$${currentMonthTotal.toLocaleString()}`,
+      value: formatCurrency(currentMonthTotal),
       icon: DollarSign,
       description: `${currentMonthPayments?.length || 0} payments`,
       trend: growth > 0 ? "up" : growth < 0 ? "down" : "neutral",
@@ -56,14 +57,14 @@ export async function PaymentsSummary() {
     },
     {
       title: "Today",
-      value: `$${todayTotal.toLocaleString()}`,
+      value: formatCurrency(todayTotal),
       icon: Calendar,
       description: `${todayPayments?.length || 0} payments`,
       trend: "neutral",
     },
     {
       title: "Rent Payments",
-      value: `$${rentTotal.toLocaleString()}`,
+      value: formatCurrency(rentTotal),
       icon: CreditCard,
       description: `${rentPayments.length} rent payments`,
       trend: "neutral",

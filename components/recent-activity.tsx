@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
+import { formatCurrency } from "@/lib/utils"
 
 export async function RecentActivity() {
   const supabase = await createClient()
@@ -76,7 +77,7 @@ export async function RecentActivity() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-foreground">${Number(activity.amount).toLocaleString()}</p>
+                  <p className="text-sm font-semibold text-foreground">{formatCurrency(Number(activity.amount))}</p>
                   <Badge variant={activity.type === "payment" ? "default" : "secondary"} className="text-xs">
                     {activity.type === "payment" ? activity.paymentType : activity.status}
                   </Badge>
