@@ -131,14 +131,6 @@ export async function CustomersTable() {
                 </div>
               </div>
             </CardHeader>
-
-            <CardContent className="pt-0">
-              <div className="mt-2 pt-2 border-t">
-                <p className="text-xs text-muted-foreground">
-                  Since {new Date(customer.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </CardContent>
           </Card>
         )
       })}
