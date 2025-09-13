@@ -30,7 +30,7 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
   const [formData, setFormData] = useState({
     facility_id: unit?.facility_id || "",
     unit_number: unit?.unit_number || "",
-    size_category: unit?.size_category || "",
+    door_type: unit?.door_type || unit?.size_category || "",
     dimensions: unit?.dimensions || "",
     monthly_rate: unit?.monthly_rate || "",
     status: unit?.status || "available",
@@ -48,13 +48,16 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
       const unitData = {
         ...formData,
         monthly_rate: Number.parseFloat(formData.monthly_rate),
+        size_category: formData.door_type,
       }
+
+      const { door_type, ...dbData } = unitData
 
       let result
       if (unit) {
-        result = await supabase.from("storage_units").update(unitData).eq("id", unit.id)
+        result = await supabase.from("storage_units").update(dbData).eq("id", unit.id)
       } else {
-        result = await supabase.from("storage_units").insert([unitData])
+        result = await supabase.from("storage_units").insert([dbData])
       }
 
       if (result.error) throw result.error
@@ -118,30 +121,28 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="size_category">Size Category</Label>
+              <Label htmlFor="door_type">Door Type</Label>
               <Select
-                value={formData.size_category}
-                onValueChange={(value) => setFormData({ ...formData, size_category: value })}
+                value={formData.door_type}
+                onValueChange={(value) => setFormData({ ...formData, door_type: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select size" />
+                  <SelectValue placeholder="Select door type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="small">Small</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="large">Large</SelectItem>
-                  <SelectItem value="extra_large">Extra Large</SelectItem>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="tall">Tall</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dimensions">Dimensions</Label>
+              <Label htmlFor="dimensions">Dimensions (sqm)</Label>
               <Input
                 id="dimensions"
                 value={formData.dimensions}
                 onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                placeholder="e.g., 10x10"
+                placeholder="e.g., 25 sqm"
                 required
               />
             </div>

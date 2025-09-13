@@ -48,7 +48,7 @@ export async function UnitsGrid() {
           <Card key={unit.id} className="relative overflow-hidden hover:shadow-md transition-shadow">
             <CardHeader className="pb-1 px-3 pt-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-bold">Unit {unit.unit_number}</CardTitle>
+                <CardTitle className="text-sm font-bold">{unit.unit_number}</CardTitle>
                 <Badge
                   variant={
                     unit.status === "available" ? "default" : unit.status === "occupied" ? "secondary" : "destructive"
@@ -62,6 +62,10 @@ export async function UnitsGrid() {
 
             <CardContent className="space-y-1 pt-0 px-3 pb-3">
               <div className="text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Door:</span>
+                  <span className="font-medium capitalize">{unit.size_category}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Size:</span>
                   <span className="font-medium">{unit.dimensions}</span>
