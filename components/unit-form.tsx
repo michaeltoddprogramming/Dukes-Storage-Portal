@@ -34,8 +34,6 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
     dimensions: unit?.dimensions || "",
     monthly_rate: unit?.monthly_rate || "",
     status: unit?.status || "available",
-    floor_level: unit?.floor_level || "1",
-    has_climate_control: unit?.has_climate_control || false,
     has_electricity: unit?.has_electricity || false,
     description: unit?.description || "",
   })
@@ -50,7 +48,6 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
       const unitData = {
         ...formData,
         monthly_rate: Number.parseFloat(formData.monthly_rate),
-        floor_level: Number.parseInt(formData.floor_level),
       }
 
       let result
@@ -113,7 +110,7 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
                 id="unit_number"
                 value={formData.unit_number}
                 onChange={(e) => setFormData({ ...formData, unit_number: e.target.value })}
-                placeholder="e.g., A101"
+                placeholder="e.g., DUKE 1"
                 required
               />
             </div>
@@ -150,7 +147,7 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="monthly_rate">Monthly Rate (R)</Label>
               <Input
@@ -177,30 +174,9 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="floor_level">Floor Level</Label>
-              <Input
-                id="floor_level"
-                type="number"
-                value={formData.floor_level}
-                onChange={(e) => setFormData({ ...formData, floor_level: e.target.value })}
-                min="1"
-                required
-              />
-            </div>
           </div>
 
           <div className="flex gap-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="climate_control"
-                checked={formData.has_climate_control}
-                onCheckedChange={(checked) => setFormData({ ...formData, has_climate_control: checked as boolean })}
-              />
-              <Label htmlFor="climate_control">Climate Control</Label>
-            </div>
-
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="electricity"

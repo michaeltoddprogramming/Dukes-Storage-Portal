@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, MapPin, Zap, Thermometer, User } from "lucide-react"
+import { Edit, Trash2, Zap, User } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 
@@ -72,18 +72,12 @@ export async function UnitsGrid() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-muted-foreground">F{unit.floor_level}</span>
+              {unit.has_electricity && (
+                <div className="flex items-center gap-1 text-xs">
+                  <Zap className="h-3 w-3 text-yellow-500" />
+                  <span className="text-muted-foreground">Electricity</span>
                 </div>
-                <div className="flex gap-1">
-                  {unit.has_climate_control && (
-                    <Thermometer className="h-3 w-3 text-blue-500" title="Climate Control" />
-                  )}
-                  {unit.has_electricity && <Zap className="h-3 w-3 text-yellow-500" title="Electricity" />}
-                </div>
-              </div>
+              )}
 
               {activeRental ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mt-2">
