@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { PaymentsTable } from "@/components/payments-table"
 import { PaymentsHeader } from "@/components/payments-header"
 import { PaymentsSummary } from "@/components/payments-summary"
+import { PaymentCalendar } from "@/components/payment-calendar"
 
 export default async function PaymentsPage() {
   const supabase = await createClient()
@@ -29,7 +29,7 @@ export default async function PaymentsPage() {
       <div className="container mx-auto px-6 py-8">
         <div className="space-y-8">
           <PaymentsSummary />
-          <PaymentsTable />
+          <PaymentCalendar />
         </div>
       </div>
     </div>
