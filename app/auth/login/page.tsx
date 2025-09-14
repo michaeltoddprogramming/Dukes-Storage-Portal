@@ -46,8 +46,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Storage Portal Admin</CardTitle>
-            <CardDescription>Sign in to access the admin dashboard</CardDescription>
+            <CardTitle className="text-2xl">Duke's Storage Admin</CardTitle>
+            <CardDescription>Sign in to access Duke's Storage admin dashboard</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">

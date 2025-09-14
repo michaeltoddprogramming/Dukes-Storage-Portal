@@ -32,7 +32,7 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href="/" className="text-xl font-bold text-foreground">
-              Storage Portal
+              Duke's Storage Portal
             </Link>
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6">

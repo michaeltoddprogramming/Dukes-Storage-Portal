@@ -64,8 +64,8 @@ export default function SignUpPage() {
       <div className="w-full max-w-md">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Create Admin Account</CardTitle>
-            <CardDescription>Set up your storage portal admin account</CardDescription>
+            <CardTitle className="text-2xl">Duke's Storage Admin</CardTitle>
+            <CardDescription>Set up your Duke's Storage admin account</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp} className="space-y-4">
