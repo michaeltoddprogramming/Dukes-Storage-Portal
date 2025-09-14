@@ -2,8 +2,9 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Edit, Trash2, MapPin, Zap, Thermometer } from "lucide-react"
+import { Edit, Trash2, Zap, User } from "lucide-react"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/utils"
 
 export async function UnitsGrid() {
   const supabase = await createClient()
@@ -32,65 +33,86 @@ export async function UnitsGrid() {
     )
   }
 
+  const sortedUnits = units.sort((a, b) => {
+    const aNum = Number.parseInt(a.unit_number.replace(/\D/g, "")) || 999
+    const bNum = Number.parseInt(b.unit_number.replace(/\D/g, "")) || 999
+    return aNum - bNum
+  })
+
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {units.map((unit) => {
+    <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+      {sortedUnits.map((unit) => {
         const activeRental = unit.rentals?.find((r) => r.status === "active")
 
         return (
-          <Card key={unit.id} className="relative overflow-hidden">
-            <CardHeader className="pb-3">
+          <Card key={unit.id} className="relative overflow-hidden hover:shadow-md transition-shadow">
+            <CardHeader className="pb-1 px-3 pt-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Unit {unit.unit_number}</CardTitle>
+                <CardTitle className="text-sm font-bold">{unit.unit_number}</CardTitle>
                 <Badge
                   variant={
                     unit.status === "available" ? "default" : unit.status === "occupied" ? "secondary" : "destructive"
                   }
+                  className="text-xs px-1 py-0"
                 >
-                  {unit.status}
+                  {unit.status === "available" ? "Free" : unit.status === "occupied" ? "Rented" : "Maint"}
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground">{unit.facilities.name}</p>
             </CardHeader>
 
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
+            <CardContent className="space-y-1 pt-0 px-3 pb-3">
+              <div className="text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Door:</span>
+                  <span className="font-medium capitalize">{unit.size_category}</span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Size:</span>
-                  <p className="font-medium">{unit.dimensions}</p>
+                  <span className="font-medium">{unit.dimensions}</span>
                 </div>
-                <div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">Rate:</span>
-                  <p className="font-medium">${unit.monthly_rate}/mo</p>
+                  <span className="font-semibold text-green-600">{formatCurrency(unit.monthly_rate)}/mo</span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Floor {unit.floor_level}</span>
-                {unit.has_climate_control && <Thermometer className="h-4 w-4 text-blue-500" title="Climate Control" />}
-                {unit.has_electricity && <Zap className="h-4 w-4 text-yellow-500" title="Electricity" />}
-              </div>
-
-              {activeRental && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="text-sm font-medium">
-                    Rented by: {activeRental.customers.first_name} {activeRental.customers.last_name}
-                  </p>
+              {unit.has_electricity && (
+                <div className="flex items-center gap-1 text-xs">
+                  <Zap className="h-3 w-3 text-yellow-500" />
+                  <span className="text-muted-foreground">Electricity</span>
                 </div>
               )}
 
-              {unit.description && <p className="text-sm text-muted-foreground line-clamp-2">{unit.description}</p>}
+              {activeRental ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mt-2">
+                  <div className="flex items-center gap-1 mb-1">
+                    <User className="h-3 w-3 text-blue-600" />
+                    <span className="text-xs font-medium text-blue-800">RENTED TO:</span>
+                  </div>
+                  <p className="text-xs font-semibold text-blue-900 truncate">
+                    {activeRental.customers.first_name} {activeRental.customers.last_name}
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-2">
+                  <div className="flex items-center justify-center">
+                    <span className="text-xs font-medium text-green-800">AVAILABLE</span>
+                  </div>
+                </div>
+              )}
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-1 pt-1">
                 <Link href={`/units/${unit.id}/edit`} className="flex-1">
-                  <Button variant="outline" size="sm" className="w-full bg-transparent">
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
+                  <Button variant="outline" size="sm" className="w-full h-6 text-xs bg-transparent px-1">
+                    <Edit className="h-3 w-3" />
                   </Button>
                 </Link>
-                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive bg-transparent">
-                  <Trash2 className="h-4 w-4" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive h-6 px-1 bg-transparent"
+                >
+                  <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
             </CardContent>

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDistanceToNow } from "date-fns"
+import { formatCurrency } from "@/lib/utils"
 
 export async function PaymentsTable() {
   const supabase = await createClient()
@@ -94,7 +95,7 @@ export async function PaymentsTable() {
               </div>
 
               <div className="text-right space-y-2">
-                <div className="text-lg font-semibold text-foreground">${Number(payment.amount).toLocaleString()}</div>
+                <div className="text-lg font-semibold text-foreground">{formatCurrency(Number(payment.amount))}</div>
                 <div className="flex gap-2">
                   <Badge variant={getPaymentTypeColor(payment.payment_type)} className="text-xs">
                     {payment.payment_type.replace("_", " ")}

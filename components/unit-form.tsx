@@ -30,12 +30,10 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
   const [formData, setFormData] = useState({
     facility_id: unit?.facility_id || "",
     unit_number: unit?.unit_number || "",
-    size_category: unit?.size_category || "",
+    door_type: unit?.door_type || unit?.size_category || "",
     dimensions: unit?.dimensions || "",
     monthly_rate: unit?.monthly_rate || "",
     status: unit?.status || "available",
-    floor_level: unit?.floor_level || "1",
-    has_climate_control: unit?.has_climate_control || false,
     has_electricity: unit?.has_electricity || false,
     description: unit?.description || "",
   })
@@ -50,14 +48,16 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
       const unitData = {
         ...formData,
         monthly_rate: Number.parseFloat(formData.monthly_rate),
-        floor_level: Number.parseInt(formData.floor_level),
+        size_category: formData.door_type,
       }
+
+      const { door_type, ...dbData } = unitData
 
       let result
       if (unit) {
-        result = await supabase.from("storage_units").update(unitData).eq("id", unit.id)
+        result = await supabase.from("storage_units").update(dbData).eq("id", unit.id)
       } else {
-        result = await supabase.from("storage_units").insert([unitData])
+        result = await supabase.from("storage_units").insert([dbData])
       }
 
       if (result.error) throw result.error
@@ -113,7 +113,7 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
                 id="unit_number"
                 value={formData.unit_number}
                 onChange={(e) => setFormData({ ...formData, unit_number: e.target.value })}
-                placeholder="e.g., A101"
+                placeholder="e.g., DUKE 1"
                 required
               />
             </div>
@@ -121,38 +121,36 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="size_category">Size Category</Label>
+              <Label htmlFor="door_type">Door Type</Label>
               <Select
-                value={formData.size_category}
-                onValueChange={(value) => setFormData({ ...formData, size_category: value })}
+                value={formData.door_type}
+                onValueChange={(value) => setFormData({ ...formData, door_type: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select size" />
+                  <SelectValue placeholder="Select door type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="small">Small</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="large">Large</SelectItem>
-                  <SelectItem value="extra_large">Extra Large</SelectItem>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="tall">Tall</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dimensions">Dimensions</Label>
+              <Label htmlFor="dimensions">Dimensions (sqm)</Label>
               <Input
                 id="dimensions"
                 value={formData.dimensions}
                 onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
-                placeholder="e.g., 10x10"
+                placeholder="e.g., 25 sqm"
                 required
               />
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="monthly_rate">Monthly Rate ($)</Label>
+              <Label htmlFor="monthly_rate">Monthly Rate (R)</Label>
               <Input
                 id="monthly_rate"
                 type="number"
@@ -177,30 +175,9 @@ export function UnitForm({ facilities, unit }: UnitFormProps) {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="floor_level">Floor Level</Label>
-              <Input
-                id="floor_level"
-                type="number"
-                value={formData.floor_level}
-                onChange={(e) => setFormData({ ...formData, floor_level: e.target.value })}
-                min="1"
-                required
-              />
-            </div>
           </div>
 
           <div className="flex gap-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="climate_control"
-                checked={formData.has_climate_control}
-                onCheckedChange={(checked) => setFormData({ ...formData, has_climate_control: checked as boolean })}
-              />
-              <Label htmlFor="climate_control">Climate Control</Label>
-            </div>
-
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="electricity"
