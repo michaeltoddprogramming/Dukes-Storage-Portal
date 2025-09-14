@@ -5,8 +5,10 @@ import { CalendarPaymentTracker } from "@/components/calendar-payment-tracker"
 export default async function PaymentsPage() {
   const supabase = await createClient()
 
+  console.log("[v0] Fetching rentals data...")
+
   // Get all active rentals with customer and unit info
-  const { data: rentals } = await supabase
+  const { data: rentals, error: rentalsError } = await supabase
     .from("rentals")
     .select(`
       *,
@@ -16,11 +18,16 @@ export default async function PaymentsPage() {
     .eq("status", "active")
     .order("storage_units(unit_number)")
 
+  console.log("[v0] Rentals data:", rentals)
+  console.log("[v0] Rentals error:", rentalsError)
+
   // Get all payments for the last 3 months
   const threeMonthsAgo = new Date()
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 
-  const { data: payments } = await supabase
+  console.log("[v0] Fetching payments data...")
+
+  const { data: payments, error: paymentsError } = await supabase
     .from("payments")
     .select(`
       *,
@@ -28,6 +35,9 @@ export default async function PaymentsPage() {
     `)
     .gte("payment_date", threeMonthsAgo.toISOString())
     .eq("payment_type", "rent")
+
+  console.log("[v0] Payments data:", payments)
+  console.log("[v0] Payments error:", paymentsError)
 
   return (
     <div className="min-h-screen bg-background">
