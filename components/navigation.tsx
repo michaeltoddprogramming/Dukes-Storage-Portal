@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Building, Users, CreditCard, LogOut, User } from "lucide-react"
+import { Building, Users, CreditCard, LogOut, User, Menu, X } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -16,6 +16,7 @@ interface NavigationProps {
 export function Navigation({ userEmail, userName }: NavigationProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const handleSignOut = async () => {
     setIsLoading(true)
@@ -33,6 +34,7 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
             <Link href="/" className="text-xl font-bold text-foreground">
               Storage Portal
             </Link>
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-6">
               <Link
                 href="/units"
@@ -58,21 +60,64 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
             </div>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <User className="h-4 w-4 mr-2" />
-                {userName || userEmail || "Admin"}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleSignOut} disabled={isLoading}>
-                <LogOut className="h-4 w-4 mr-2" />
-                {isLoading ? "Signing out..." : "Sign Out"}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            {/* Mobile Menu Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="md:hidden"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </Button>
+
+            {/* User Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <User className="h-4 w-4 mr-2" />
+                  {userName || userEmail || "Admin"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleSignOut} disabled={isLoading}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  {isLoading ? "Signing out..." : "Sign Out"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden mt-4 pt-4 border-t border-border space-y-2">
+            <Link
+              href="/units"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <Building className="h-4 w-4" />
+              Units
+            </Link>
+            <Link
+              href="/customers"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <Users className="h-4 w-4" />
+              Customers
+            </Link>
+            <Link
+              href="/payments"
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              <CreditCard className="h-4 w-4" />
+              Payments
+            </Link>
+          </div>
+        )}
       </div>
     </nav>
   )
