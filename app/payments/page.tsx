@@ -1,26 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
 import { PaymentsHeader } from "@/components/payments-header"
 import { CalendarPaymentTracker } from "@/components/calendar-payment-tracker"
 
 export default async function PaymentsPage() {
   const supabase = await createClient()
-
-  // Check authentication
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error || !user) {
-    redirect("/auth/login")
-  }
-
-  // Check if user is an admin
-  const { data: adminUser } = await supabase.from("admin_users").select("*").eq("id", user.id).single()
-
-  if (!adminUser) {
-    redirect("/auth/login")
-  }
 
   // Get all active rentals with customer and unit info
   const { data: rentals } = await supabase
