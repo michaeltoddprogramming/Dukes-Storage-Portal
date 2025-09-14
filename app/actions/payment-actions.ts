@@ -17,13 +17,12 @@ export async function markPaymentPaid(rentalId: string, monthDate: Date, monthly
     .single()
 
   if (existingPayment) {
-    // Update existing payment to completed
     const { data, error } = await supabase
       .from("payments")
       .update({
-        status: "completed",
         amount: monthlyRate,
         payment_date: new Date().toISOString().split("T")[0],
+        payment_method: "cash",
         notes: `Payment for ${monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} - marked as paid`,
       })
       .eq("id", existingPayment.id)
@@ -39,7 +38,6 @@ export async function markPaymentPaid(rentalId: string, monthDate: Date, monthly
     return data
   }
 
-  // Create new payment record
   const paymentDate = new Date()
   const { data, error } = await supabase
     .from("payments")
@@ -49,7 +47,6 @@ export async function markPaymentPaid(rentalId: string, monthDate: Date, monthly
       payment_date: paymentDate.toISOString().split("T")[0],
       payment_type: "rent",
       payment_method: "cash",
-      status: "completed",
       notes: `Payment for ${monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`,
     })
     .select()
@@ -78,45 +75,19 @@ export async function markPaymentMissed(rentalId: string, monthDate: Date) {
     .single()
 
   if (existingPayment) {
-    // Update existing payment to missed
-    const { data, error } = await supabase
-      .from("payments")
-      .update({
-        status: "missed",
-        notes: `Payment for ${monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} - marked as missed`,
-      })
-      .eq("id", existingPayment.id)
-      .select()
-      .single()
+    // Delete existing payment record to mark as missed
+    const { error } = await supabase.from("payments").delete().eq("id", existingPayment.id)
 
     if (error) {
-      console.error("Error updating payment:", error)
-      throw new Error("Failed to update payment")
+      console.error("Error deleting payment:", error)
+      throw new Error("Failed to mark payment as missed")
     }
 
     revalidatePath("/payments")
-    return data
+    return { success: true }
   }
 
-  // Create new missed payment record
-  const { data, error } = await supabase
-    .from("payments")
-    .insert({
-      rental_id: rentalId,
-      amount: 0, // No amount for missed payments
-      payment_date: monthDate.toISOString().split("T")[0],
-      payment_type: "rent",
-      status: "missed",
-      notes: `Payment for ${monthDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })} - marked as missed`,
-    })
-    .select()
-    .single()
-
-  if (error) {
-    console.error("Error creating missed payment record:", error)
-    throw new Error("Failed to record missed payment")
-  }
-
+  // If no existing payment, nothing to do (already considered missed)
   revalidatePath("/payments")
-  return data
+  return { success: true }
 }
