@@ -28,9 +28,6 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/`,
-        },
       })
       if (error) throw error
       router.push("/")
@@ -42,14 +39,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 sm:p-6">
       <div className="w-full max-w-md">
         <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Duke's Storage Admin</CardTitle>
-            <CardDescription>Sign in to access Duke's Storage admin dashboard</CardDescription>
+          <CardHeader className="text-center px-4 sm:px-6">
+            <CardTitle className="text-xl sm:text-2xl">Duke's Storage Admin</CardTitle>
+            <CardDescription className="text-sm sm:text-base">Sign in to access Duke's Storage admin dashboard</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>

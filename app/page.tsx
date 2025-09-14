@@ -121,13 +121,13 @@ export default function DashboardPage() {
       <Navigation userEmail={user.email} userName={adminUser.full_name} />
 
       <div className="border-b bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="container mx-auto px-4 sm:px-6 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-muted-foreground">Welcome back, {adminUser.full_name}</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Welcome back, {adminUser.full_name}</p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-4">
               <div className="text-sm text-muted-foreground">
                 {new Date().toLocaleDateString("en-US", {
                   weekday: "long",
@@ -141,13 +141,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid gap-8">
+      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        <div className="grid gap-6 sm:gap-8">
           {/* Dashboard Stats */}
           <DashboardStats />
 
           {/* Charts and Activity */}
-          <div className="grid gap-8 lg:grid-cols-2">
+          <div className="grid gap-6 sm:gap-8 lg:grid-cols-2">
             <UnitOccupancyChart />
             <RecentActivity />
           </div>

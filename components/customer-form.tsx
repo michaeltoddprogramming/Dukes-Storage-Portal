@@ -246,7 +246,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                     <Checkbox
                       id="first_month_payment"
                       checked={firstMonthPayment}
-                      onCheckedChange={setFirstMonthPayment}
+                      onCheckedChange={(checked) => setFirstMonthPayment(checked === true)}
                     />
                     <Label htmlFor="first_month_payment">1st Month Payment</Label>
                   </div>

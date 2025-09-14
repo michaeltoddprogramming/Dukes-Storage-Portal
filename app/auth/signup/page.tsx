@@ -60,14 +60,14 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 sm:p-6">
       <div className="w-full max-w-md">
         <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Duke's Storage Admin</CardTitle>
-            <CardDescription>Set up your Duke's Storage admin account</CardDescription>
+          <CardHeader className="text-center px-4 sm:px-6">
+            <CardTitle className="text-xl sm:text-2xl">Duke's Storage Admin</CardTitle>
+            <CardDescription className="text-sm sm:text-base">Set up your Duke's Storage admin account</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
             <form onSubmit={handleSignUp} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>

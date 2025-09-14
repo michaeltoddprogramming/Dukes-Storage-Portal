@@ -169,7 +169,7 @@ export default function AssignUnitPage() {
             </div>
 
             <div className="flex items-center space-x-2">
-              <Checkbox id="first_month_payment" checked={firstMonthPayment} onCheckedChange={setFirstMonthPayment} />
+              <Checkbox id="first_month_payment" checked={firstMonthPayment} onCheckedChange={(checked) => setFirstMonthPayment(checked === true)} />
               <Label htmlFor="first_month_payment">1st Month Payment</Label>
             </div>
 

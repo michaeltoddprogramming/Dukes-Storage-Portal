@@ -28,10 +28,10 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
 
   return (
     <nav className="border-b bg-card">
-      <div className="container mx-auto px-6 py-4">
+      <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="text-xl font-bold text-foreground">
+          <div className="flex items-center gap-4 sm:gap-8">
+            <Link href="/" className="text-lg sm:text-xl font-bold text-foreground truncate">
               Duke's Storage Portal
             </Link>
             {/* Desktop Navigation */}
@@ -74,9 +74,9 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <User className="h-4 w-4 mr-2" />
-                  {userName || userEmail || "Admin"}
+                <Button variant="outline" size="sm" className="max-w-[120px] sm:max-w-none">
+                  <User className="h-4 w-4 mr-1 sm:mr-2" />
+                  <span className="truncate">{userName || userEmail || "Admin"}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -91,29 +91,29 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
 
         {/* Mobile Navigation Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden mt-4 pt-4 border-t border-border space-y-2">
+          <div className="md:hidden mt-4 pt-4 border-t border-border space-y-1">
             <Link
               href="/units"
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              className="flex items-center gap-3 text-base text-muted-foreground hover:text-foreground transition-colors py-3 px-2 rounded-md hover:bg-muted"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <Building className="h-4 w-4" />
+              <Building className="h-5 w-5" />
               Units
             </Link>
             <Link
               href="/customers"
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              className="flex items-center gap-3 text-base text-muted-foreground hover:text-foreground transition-colors py-3 px-2 rounded-md hover:bg-muted"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <Users className="h-4 w-4" />
+              <Users className="h-5 w-5" />
               Customers
             </Link>
             <Link
               href="/payments"
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+              className="flex items-center gap-3 text-base text-muted-foreground hover:text-foreground transition-colors py-3 px-2 rounded-md hover:bg-muted"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <CreditCard className="h-4 w-4" />
+              <CreditCard className="h-5 w-5" />
               Payments
             </Link>
           </div>

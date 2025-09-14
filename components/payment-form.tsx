@@ -14,15 +14,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/hooks/use-toast"
 
 interface Rental {
-  id: string
-  monthly_rate: number
-  customers: {
-    first_name: string
-    last_name: string
-  }
-  storage_units: {
-    unit_number: string
-  }
+  id: any
+  monthly_rate: any
+  customers: any
+  storage_units: any
 }
 
 interface PaymentFormProps {

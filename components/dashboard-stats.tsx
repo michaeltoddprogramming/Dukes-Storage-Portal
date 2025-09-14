@@ -94,14 +94,14 @@ export function DashboardStats() {
 
   if (isLoading) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-4 w-4" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 sm:px-6">
               <Skeleton className="h-8 w-16 mb-2" />
               <Skeleton className="h-3 w-24" />
             </CardContent>
@@ -113,10 +113,10 @@ export function DashboardStats() {
 
   if (error) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <Card key={index}>
-            <CardContent className="p-6 text-center">
+            <CardContent className="p-4 sm:p-6 text-center">
               <p className="text-sm text-muted-foreground">Failed to load stats</p>
             </CardContent>
           </Card>
@@ -126,17 +126,17 @@ export function DashboardStats() {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       {stats.map((stat, index) => {
         const Icon = stat.icon
         return (
           <Card key={index} className="relative overflow-hidden">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-              <Icon className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 sm:px-6">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{stat.title}</CardTitle>
+              <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-foreground">{stat.value}</div>
+            <CardContent className="px-4 sm:px-6">
+              <div className="text-xl sm:text-2xl font-bold text-foreground">{stat.value}</div>
               <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
               <div
                 className={`absolute bottom-0 left-0 h-1 w-full ${

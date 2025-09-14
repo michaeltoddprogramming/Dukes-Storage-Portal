@@ -42,7 +42,7 @@ export async function UnitsGrid() {
   return (
     <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
       {sortedUnits.map((unit) => {
-        const activeRental = unit.rentals?.find((r) => r.status === "active")
+        const activeRental = unit.rentals?.find((r: any) => r.status === "active")
 
         return (
           <Card key={unit.id} className="relative overflow-hidden hover:shadow-md transition-shadow">

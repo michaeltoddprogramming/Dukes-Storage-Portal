@@ -33,8 +33,8 @@ export async function CustomersTable() {
   }
 
   const sortedCustomers = customers.sort((a, b) => {
-    const aActiveRentals = a.rentals?.filter((r) => r.status === "active") || []
-    const bActiveRentals = b.rentals?.filter((r) => r.status === "active") || []
+    const aActiveRentals = a.rentals?.filter((r: any) => r.status === "active") || []
+    const bActiveRentals = b.rentals?.filter((r: any) => r.status === "active") || []
 
     if (aActiveRentals.length === 0 && bActiveRentals.length === 0) {
       return a.last_name.localeCompare(b.last_name)
@@ -43,13 +43,13 @@ export async function CustomersTable() {
     if (bActiveRentals.length === 0) return -1
 
     const aLowestUnit = Math.min(
-      ...aActiveRentals.map((r) => {
+      ...aActiveRentals.map((r: any) => {
         const unitNum = r.storage_units.unit_number.replace(/\D/g, "")
         return Number.parseInt(unitNum) || 999
       }),
     )
     const bLowestUnit = Math.min(
-      ...bActiveRentals.map((r) => {
+      ...bActiveRentals.map((r: any) => {
         const unitNum = r.storage_units.unit_number.replace(/\D/g, "")
         return Number.parseInt(unitNum) || 999
       }),
@@ -59,15 +59,15 @@ export async function CustomersTable() {
   })
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
       {sortedCustomers.map((customer) => {
-        const activeRentals = customer.rentals?.filter((r) => r.status === "active") || []
+        const activeRentals = customer.rentals?.filter((r: any) => r.status === "active") || []
         const totalMonthlyRent = activeRentals.reduce(
-          (sum, rental) => sum + Number(rental.storage_units.monthly_rate),
+          (sum: number, rental: any) => sum + Number(rental.storage_units.monthly_rate),
           0,
         )
 
-        const sortedActiveRentals = activeRentals.sort((a, b) => {
+        const sortedActiveRentals = activeRentals.sort((a: any, b: any) => {
           const aNum = Number.parseInt(a.storage_units.unit_number.replace(/\D/g, "")) || 999
           const bNum = Number.parseInt(b.storage_units.unit_number.replace(/\D/g, "")) || 999
           return aNum - bNum
@@ -75,13 +75,13 @@ export async function CustomersTable() {
 
         return (
           <Card key={customer.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-2 px-3 sm:px-6">
               {activeRentals.length > 0 ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="flex flex-wrap gap-1">
-                        {sortedActiveRentals.map((rental) => (
+                        {sortedActiveRentals.map((rental: any) => (
                           <span key={rental.id} className="text-sm font-bold text-blue-800">
                             {rental.storage_units.unit_number}
                           </span>
