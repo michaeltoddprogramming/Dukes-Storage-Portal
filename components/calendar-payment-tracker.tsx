@@ -24,7 +24,6 @@ interface Payment {
   rental_id: string
   payment_date: string
   amount: number
-  status: string
 }
 
 interface CalendarPaymentTrackerProps {
@@ -53,8 +52,10 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
     const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`
     const payment = payments.find((p) => p.rental_id === rentalId && p.payment_date.startsWith(monthKey))
 
+    console.log(`[v0] Checking payment status for rental ${rentalId}, month ${monthKey}:`, payment)
+
     if (payment) {
-      return payment.status === "completed" ? "paid" : payment.status === "missed" ? "missed" : "pending"
+      return "paid"
     }
 
     // If no payment record and month is past, it's missed
@@ -67,12 +68,19 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
   }
 
   const handleMarkPayment = async (rentalId: string, month: Date, status: "paid" | "missed") => {
+    console.log(`[v0] Button clicked - marking payment as ${status} for rental ${rentalId}, month:`, month)
+
     const key = `${rentalId}-${month.getTime()}`
     setProcessingPayments((prev) => new Set(prev).add(key))
 
     try {
       const rental = rentals.find((r) => r.id === rentalId)
-      if (!rental) return
+      if (!rental) {
+        console.log("[v0] Rental not found:", rentalId)
+        return
+      }
+
+      console.log(`[v0] Calling server action for ${status}`)
 
       if (status === "paid") {
         await markPaymentPaid(rentalId, month, rental.storage_units.monthly_rate)
@@ -80,10 +88,12 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
         await markPaymentMissed(rentalId, month)
       }
 
+      console.log(`[v0] Server action completed successfully`)
+
       // Refresh the page to show updated data
       window.location.reload()
     } catch (error) {
-      console.error("Error updating payment:", error)
+      console.error("[v0] Error updating payment:", error)
     } finally {
       setProcessingPayments((prev) => {
         const newSet = new Set(prev)
