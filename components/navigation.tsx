@@ -41,14 +41,7 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Building className="h-4 w-4" />
-                Units
-              </Link>
-              <Link
-                href="/customers"
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Users className="h-4 w-4" />
-                Customers
+                Units & Customers
               </Link>
               <Link
                 href="/payments"
@@ -99,14 +92,6 @@ export function Navigation({ userEmail, userName }: NavigationProps) {
             >
               <Building className="h-5 w-5" />
               Units
-            </Link>
-            <Link
-              href="/customers"
-              className="flex items-center gap-3 text-base text-muted-foreground hover:text-foreground transition-colors py-3 px-2 rounded-md hover:bg-muted"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <Users className="h-5 w-5" />
-              Customers
             </Link>
             <Link
               href="/payments"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +17,41 @@ export function UnitsGrid() {
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
   const [unitToDelete, setUnitToDelete] = useState(null)
+  const [units, setUnits] = useState([])
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    async function fetchUnits() {
+      try {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from("storage_units")
+          .select(`
+            *,
+            facilities!inner(name),
+            rentals(
+              id,
+              status,
+              customers!inner(id, first_name, last_name, email, phone)
+            )
+          `)
+          .order("unit_number")
+        
+        setUnits(data || [])
+      } catch (error) {
+        console.error("Error fetching units:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load units data",
+          variant: "destructive"
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchUnits()
+  }, [])
   
   const handleDeleteUnit = async (unitId) => {
     setIsDeleting(true)
@@ -27,7 +62,7 @@ export function UnitsGrid() {
           title: "Success",
           description: "Unit deleted successfully"
         })
-        router.refresh()
+        setUnits(units.filter(unit => unit.id !== unitId))
       } else {
         throw new Error("Failed to delete unit")
       }
@@ -42,39 +77,13 @@ export function UnitsGrid() {
       setUnitToDelete(null)
     }
   }
-  
-  const supabase = createClient()
-
-  const fetchUnits = async () => {
-    const { data: units } = await supabase
-      .from("storage_units")
-      .select(`
-        *,
-        facilities!inner(name),
-        rentals(
-          id,
-          status,
-          customers!inner(first_name, last_name)
-        )
-      `)
-      .order("unit_number")
-    
-    return units || []
-  }
-  
-  const [units, setUnits] = useState([])
-  const [loading, setLoading] = useState(true)
-  
-  // Fetch units on mount
-  useState(() => {
-    fetchUnits().then(data => {
-      setUnits(data)
-      setLoading(false)
-    })
-  }, [])
 
   if (loading) {
-    return <div>Loading...</div>
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Loading units...</p>
+      </div>
+    )
   }
 
   if (!units.length) {
@@ -94,8 +103,30 @@ export function UnitsGrid() {
     return aNum - bNum
   })
 
+  // Group units by status for easier filtering if desired
+  const availableUnits = sortedUnits.filter(unit => unit.status === "available")
+  const occupiedUnits = sortedUnits.filter(unit => unit.status === "occupied") 
+  const maintenanceUnits = sortedUnits.filter(unit => unit.status === "maintenance")
+
   return (
     <>
+      <div className="mb-6 flex justify-between items-center">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">All Units ({sortedUnits.length})</h2>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+              Available: {availableUnits.length}
+            </Badge>
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+              Occupied: {occupiedUnits.length}
+            </Badge>
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              Maintenance: {maintenanceUnits.length}
+            </Badge>
+          </div>
+        </div>
+      </div>
+      
       <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
         {sortedUnits.map((unit) => {
           const activeRental = unit.rentals?.find((r) => r.status === "active")
@@ -148,12 +179,28 @@ export function UnitsGrid() {
                     <p className="text-xs font-semibold text-blue-900 truncate">
                       {activeRental.customers.first_name} {activeRental.customers.last_name}
                     </p>
+                    
+                    {activeRental && activeRental.customers && activeRental.customers.id ? (
+                      <Link href={`/customers/${activeRental.customers.id}`} className="mt-1 block">
+                        <Button variant="ghost" size="sm" className="w-full h-6 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-800 p-0">
+                          View Customer Details
+                        </Button>
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">No customer info</span>
+                    )}
                   </div>
                 ) : (
                   <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-2">
                     <div className="flex items-center justify-center">
                       <span className="text-xs font-medium text-green-800">AVAILABLE</span>
                     </div>
+                    
+                    <Link href={`/customers/new?assign=true&unit=${unit.id}`} className="mt-1 block">
+                      <Button variant="ghost" size="sm" className="w-full h-6 text-xs text-green-600 hover:bg-green-100 hover:text-green-800 p-0">
+                        Assign to Customer
+                      </Button>
+                    </Link>
                   </div>
                 )}
 
