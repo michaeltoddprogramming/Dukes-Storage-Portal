@@ -7,10 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
 import { deleteUnit, terminateRental } from "@/app/actions/rental-actions"
-import { Edit, Trash2, Zap, User, UserPlus, X, Plus } from "lucide-react"
+import { Edit, Trash2, Zap, User, UserPlus, X, Plus, Search } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -33,11 +32,35 @@ export function UnitsGrid() {
   const [unitToAssign, setUnitToAssign] = useState(null)
   const [customerSearchTerm, setCustomerSearchTerm] = useState("")
   const [searchResults, setSearchResults] = useState([])
+  const [allCustomers, setAllCustomers] = useState([]) // Store all customers
   const [isSearching, setIsSearching] = useState(false)
   
   useEffect(() => {
     fetchUnits()
   }, [])
+
+  // Load all customers when dialog opens
+  useEffect(() => {
+    if (unitToAssign) {
+      loadAllCustomers()
+    }
+  }, [unitToAssign])
+
+  // Filter customers based on search term
+  useEffect(() => {
+    if (allCustomers.length > 0) {
+      if (customerSearchTerm.trim()) {
+        const filtered = allCustomers.filter(customer => 
+          customer.first_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+          customer.last_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+          customer.email.toLowerCase().includes(customerSearchTerm.toLowerCase())
+        )
+        setSearchResults(filtered)
+      } else {
+        setSearchResults(allCustomers)
+      }
+    }
+  }, [customerSearchTerm, allCustomers])
 
   const fetchUnits = async () => {
     try {
@@ -77,6 +100,38 @@ export function UnitsGrid() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAllCustomers = async () => {
+    setIsSearching(true)
+    
+    try {
+      const supabase = createClient()
+      
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, first_name, last_name, email, phone")
+        .order("last_name")
+      
+      if (error) throw error
+      
+      setAllCustomers(data || [])
+      setSearchResults(data || [])
+      
+      toast({
+        title: "Customers Loaded",
+        description: `Found ${data?.length || 0} customers available for assignment`,
+      })
+    } catch (error) {
+      console.error("Error loading customers:", error)
+      toast({
+        title: "Loading Failed",
+        description: `Could not load customers: ${error.message}`,
+        variant: "destructive"
+      })
+    } finally {
+      setIsSearching(false)
     }
   }
   
@@ -163,53 +218,6 @@ export function UnitsGrid() {
     }
   }
   
-  const handleSearchCustomers = async () => {
-    if (!customerSearchTerm.trim()) {
-      toast({
-        title: "Search Required",
-        description: "Please enter a customer name or email to search",
-        variant: "destructive"
-      })
-      return
-    }
-    
-    setIsSearching(true)
-    
-    try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .or(`first_name.ilike.%${customerSearchTerm}%,last_name.ilike.%${customerSearchTerm}%,email.ilike.%${customerSearchTerm}%`)
-        .order("last_name")
-      
-      if (error) throw error
-      
-      setSearchResults(data || [])
-      
-      if (data && data.length > 0) {
-        toast({
-          title: "Search Complete",
-          description: `Found ${data.length} matching customer${data.length === 1 ? '' : 's'}`,
-        })
-      } else {
-        toast({
-          title: "No Results",
-          description: "No customers found matching your search criteria",
-        })
-      }
-    } catch (error) {
-      console.error("Error searching customers:", error)
-      toast({
-        title: "Search Failed",
-        description: "Could not search customers. Please try again.",
-        variant: "destructive"
-      })
-    } finally {
-      setIsSearching(false)
-    }
-  }
-  
   const handleAssignCustomerToUnit = async (customerId, unitId) => {
     const loadingToast = toast({
       title: "Assigning Customer...",
@@ -259,8 +267,16 @@ export function UnitsGrid() {
       setUnitToAssign(null)
       setCustomerSearchTerm("")
       setSearchResults([])
+      setAllCustomers([])
       loadingToast.dismiss()
     }
+  }
+
+  const handleCloseAssignDialog = () => {
+    setUnitToAssign(null)
+    setSearchResults([])
+    setAllCustomers([])
+    setCustomerSearchTerm("")
   }
 
   if (loading) {
@@ -484,37 +500,47 @@ export function UnitsGrid() {
       </Dialog>
       
       {/* Assign Customer Dialog */}
-      <Dialog open={!!unitToAssign} onOpenChange={() => setUnitToAssign(null)}>
+      <Dialog open={!!unitToAssign} onOpenChange={handleCloseAssignDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Assign Customer to Unit {unitToAssign?.unit_number}</DialogTitle>
             <DialogDescription>
-              Search for an existing customer to assign to this unit
+              Choose an existing customer to assign to this unit
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Input 
-                  placeholder="Search by name or email" 
-                  value={customerSearchTerm}
-                  onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleSearchCustomers} disabled={isSearching}>
-                {isSearching ? "Searching..." : "Search"}
-              </Button>
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search customers by name or email..." 
+                value={customerSearchTerm}
+                onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
             
-            {searchResults.length > 0 ? (
+            {isSearching ? (
+              <div className="text-center p-4">
+                <p className="text-muted-foreground">Loading customers...</p>
+              </div>
+            ) : searchResults.length > 0 ? (
               <div className="max-h-60 overflow-y-auto space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  {customerSearchTerm 
+                    ? `${searchResults.length} customer${searchResults.length === 1 ? '' : 's'} found:` 
+                    : `${searchResults.length} total customer${searchResults.length === 1 ? '' : 's'}:`
+                  }
+                </p>
                 {searchResults.map(customer => (
-                  <Card key={customer.id} className="p-2">
+                  <Card key={customer.id} className="p-3 hover:bg-muted/50 transition-colors">
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="font-medium">{customer.first_name} {customer.last_name}</p>
                         <p className="text-xs text-muted-foreground">{customer.email}</p>
+                        {customer.phone && (
+                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                        )}
                       </div>
                       <Button 
                         size="sm" 
@@ -529,12 +555,15 @@ export function UnitsGrid() {
             ) : (
               <div className="text-center p-4">
                 <p className="text-muted-foreground mb-4">
-                  {customerSearchTerm ? "No matching customers found" : "Search for customers to assign"}
+                  {allCustomers.length === 0 
+                    ? "No customers found in the system" 
+                    : "No customers match your search"
+                  }
                 </p>
               </div>
             )}
             
-            <div className="flex justify-center pt-4">
+            <div className="flex justify-center pt-4 border-t">
               <Link href={`/customers/new?unit=${unitToAssign?.id}`} className="w-full">
                 <Button variant="outline" className="w-full">
                   <Plus className="h-4 w-4 mr-2" />
@@ -545,7 +574,7 @@ export function UnitsGrid() {
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setUnitToAssign(null)}>
+            <Button variant="outline" onClick={handleCloseAssignDialog}>
               Cancel
             </Button>
           </DialogFooter>
