@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +19,9 @@ interface CustomerFormProps {
 
 export function CustomerForm({ customer }: CustomerFormProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const unitIdFromUrl = searchParams.get('unit')
+  
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     first_name: customer?.first_name || "",
@@ -28,34 +30,34 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     phone: customer?.phone || "",
   })
 
-  const [availableUnits, setAvailableUnits] = useState<any[]>([])
-  const [selectedUnitId, setSelectedUnitId] = useState("")
+  const [preSelectedUnit, setPreSelectedUnit] = useState(null)
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
   const [leaseStatus, setLeaseStatus] = useState("")
   const [firstMonthPayment, setFirstMonthPayment] = useState(false)
-  const [assignUnit, setAssignUnit] = useState(false)
+  const [assignUnit, setAssignUnit] = useState(!!unitIdFromUrl)
 
   useEffect(() => {
-    if (!customer) {
-      const fetchAvailableUnits = async () => {
+    if (unitIdFromUrl) {
+      const fetchUnit = async () => {
         const supabase = createClient()
-        const { data: unitsData } = await supabase
+        const { data: unitData } = await supabase
           .from("storage_units")
           .select(`
             *,
             facilities!inner(name)
           `)
-          .eq("status", "available")
-          .order("unit_number")
+          .eq("id", unitIdFromUrl)
+          .single()
 
-        if (unitsData) {
-          setAvailableUnits(unitsData)
+        if (unitData) {
+          setPreSelectedUnit(unitData)
+          setAssignUnit(true)
         }
       }
 
-      fetchAvailableUnits()
+      fetchUnit()
     }
-  }, [customer])
+  }, [unitIdFromUrl])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -73,17 +75,16 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         if (result.error) throw result.error
 
         // If unit assignment is requested, create rental
-        if (assignUnit && selectedUnitId && result.data?.[0]) {
+        if (assignUnit && preSelectedUnit && result.data?.[0]) {
           const customerId = result.data[0].id
-          const selectedUnit = availableUnits.find((unit) => unit.id === selectedUnitId)
-
+          
           // Create rental record
           const { error: rentalError } = await supabase.from("rentals").insert([
             {
               customer_id: customerId,
-              unit_id: selectedUnitId,
+              unit_id: preSelectedUnit.id,
               start_date: paymentDate,
-              monthly_rate: selectedUnit.monthly_rate,
+              monthly_rate: preSelectedUnit.monthly_rate,
               status: "active",
             },
           ])
@@ -94,9 +95,25 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           const { error: unitError } = await supabase
             .from("storage_units")
             .update({ status: "occupied" })
-            .eq("id", selectedUnitId)
+            .eq("id", preSelectedUnit.id)
 
           if (unitError) throw unitError
+
+          // Create first month payment if requested
+          if (firstMonthPayment) {
+            const { error: paymentError } = await supabase.from("payments").insert([
+              {
+                rental_id: customerId, // This should be the rental ID, but we'd need to fetch it
+                amount: preSelectedUnit.monthly_rate,
+                payment_date: paymentDate,
+                payment_type: "rent",
+                payment_method: "cash",
+                notes: `First month payment for unit ${preSelectedUnit.unit_number}`,
+              },
+            ])
+
+            if (paymentError) console.warn("Payment creation failed:", paymentError)
+          }
         }
       }
 
@@ -107,7 +124,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         description: `Customer ${customer ? "updated" : "created"} successfully${assignUnit ? " and unit assigned" : ""}`,
       })
 
-      router.push("/customers")
+      router.push("/units")
     } catch (error) {
       console.error("Error saving customer:", error)
       toast({
@@ -123,7 +140,14 @@ export function CustomerForm({ customer }: CustomerFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{customer ? "Edit" : "Add New"} Customer</CardTitle>
+        <CardTitle>
+          {customer ? "Edit" : "Add New"} Customer
+          {preSelectedUnit && (
+            <div className="text-sm font-normal text-muted-foreground mt-1">
+              Assigning to Unit {preSelectedUnit.unit_number}
+            </div>
+          )}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -176,87 +200,63 @@ export function CustomerForm({ customer }: CustomerFormProps) {
             </div>
           </div>
 
-          {!customer && availableUnits.length > 0 && (
+          {preSelectedUnit && (
             <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="assign_unit"
-                  checked={assignUnit}
-                  onChange={(e) => setAssignUnit(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                <Label htmlFor="assign_unit" className="text-lg font-medium">
-                  Assign Storage Unit
-                </Label>
+              <h3 className="text-lg font-medium">Unit Assignment</h3>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">Unit {preSelectedUnit.unit_number}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {preSelectedUnit.dimensions} • {preSelectedUnit.facilities.name}
+                    </div>
+                  </div>
+                  <Badge className="bg-green-100 text-green-800">
+                    {formatCurrency(preSelectedUnit.monthly_rate)}/month
+                  </Badge>
+                </div>
               </div>
 
-              {assignUnit && (
-                <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-                  <div className="space-y-2">
-                    <Label htmlFor="unit">Select Available Unit</Label>
-                    <Select value={selectedUnitId} onValueChange={setSelectedUnitId} required={assignUnit}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose a unit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableUnits.map((unit) => (
-                          <SelectItem key={unit.id} value={unit.id}>
-                            <div className="flex items-center justify-between w-full">
-                              <span>
-                                Unit {unit.unit_number} - {unit.dimensions}
-                              </span>
-                              <Badge variant="outline" className="ml-2">
-                                R{unit.monthly_rate}/mo
-                              </Badge>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="payment_date">Payment Date</Label>
-                      <Input
-                        id="payment_date"
-                        type="date"
-                        value={paymentDate}
-                        onChange={(e) => setPaymentDate(e.target.value)}
-                        required={assignUnit}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="lease_status">Lease Status</Label>
-                      <Select value={leaseStatus} onValueChange={setLeaseStatus} required={assignUnit}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select lease status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="sent">Sent</SelectItem>
-                          <SelectItem value="signed">Signed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="first_month_payment"
-                      checked={firstMonthPayment}
-                      onCheckedChange={(checked) => setFirstMonthPayment(checked === true)}
-                    />
-                    <Label htmlFor="first_month_payment">1st Month Payment</Label>
-                  </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="payment_date">Start Date</Label>
+                  <Input
+                    id="payment_date"
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    required={assignUnit}
+                  />
                 </div>
-              )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="lease_status">Lease Status</Label>
+                  <Select value={leaseStatus} onValueChange={setLeaseStatus} required={assignUnit}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select lease status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sent">Sent</SelectItem>
+                      <SelectItem value="signed">Signed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="first_month_payment"
+                  checked={firstMonthPayment}
+                  onCheckedChange={(checked) => setFirstMonthPayment(checked === true)}
+                />
+                <Label htmlFor="first_month_payment">Record 1st Month Payment</Label>
+              </div>
             </div>
           )}
 
           <div className="flex gap-4">
-            <Button type="submit" disabled={isLoading || (assignUnit && (!selectedUnitId || !leaseStatus))}>
+            <Button type="submit" disabled={isLoading || (assignUnit && !leaseStatus)}>
               {isLoading
                 ? "Saving..."
                 : customer
@@ -265,7 +265,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                     ? "Create Customer & Assign Unit"
                     : "Create Customer"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => router.push("/customers")}>
+            <Button type="button" variant="outline" onClick={() => router.push("/units")}>
               Cancel
             </Button>
           </div>

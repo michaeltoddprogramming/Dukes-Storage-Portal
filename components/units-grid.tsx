@@ -6,52 +6,62 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { toast } from "@/hooks/use-toast"
-import { deleteUnit } from "@/app/actions/rental-actions"
-import { Edit, Trash2, Zap, User } from "lucide-react"
+import { deleteUnit, terminateRental } from "@/app/actions/rental-actions"
+import { Edit, Trash2, Zap, User, UserPlus, X, Plus } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 
 export function UnitsGrid() {
   const router = useRouter()
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [unitToDelete, setUnitToDelete] = useState(null)
   const [units, setUnits] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [unitToDelete, setUnitToDelete] = useState(null)
+  const [isUnlinking, setIsUnlinking] = useState(false)
+  const [rentalToUnlink, setRentalToUnlink] = useState(null)
+  const [unitToAssign, setUnitToAssign] = useState(null)
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("")
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
   
   useEffect(() => {
-    async function fetchUnits() {
-      try {
-        const supabase = createClient()
-        const { data } = await supabase
-          .from("storage_units")
-          .select(`
-            *,
-            facilities!inner(name),
-            rentals(
-              id,
-              status,
-              customers!inner(id, first_name, last_name, email, phone)
-            )
-          `)
-          .order("unit_number")
-        
-        setUnits(data || [])
-      } catch (error) {
-        console.error("Error fetching units:", error)
-        toast({
-          title: "Error",
-          description: "Failed to load units data",
-          variant: "destructive"
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
-    
     fetchUnits()
   }, [])
+
+  const fetchUnits = async () => {
+    try {
+      setLoading(true)
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("storage_units")
+        .select(`
+          *,
+          facilities!inner(name),
+          rentals(
+            id,
+            status,
+            start_date,
+            customers!inner(id, first_name, last_name, email, phone)
+          )
+        `)
+        .order("unit_number")
+      
+      setUnits(data || [])
+    } catch (error) {
+      console.error("Error fetching units:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load units data",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
   
   const handleDeleteUnit = async (unitId) => {
     setIsDeleting(true)
@@ -75,6 +85,116 @@ export function UnitsGrid() {
     } finally {
       setIsDeleting(false)
       setUnitToDelete(null)
+    }
+  }
+
+  const handleUnlinkRental = async (rentalId, unitId) => {
+    setIsUnlinking(true)
+    try {
+      const result = await terminateRental(rentalId)
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Customer unlinked from unit"
+        })
+        
+        // Update local state
+        setUnits(units.map(unit => {
+          if (unit.id === unitId) {
+            return {
+              ...unit,
+              status: "available",
+              rentals: unit.rentals.map(rental => 
+                rental.id === rentalId 
+                  ? { ...rental, status: "terminated" } 
+                  : rental
+              )
+            }
+          }
+          return unit
+        }))
+      } else {
+        throw new Error("Failed to unlink customer")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to unlink customer",
+        variant: "destructive"
+      })
+    } finally {
+      setIsUnlinking(false)
+      setRentalToUnlink(null)
+    }
+  }
+  
+  const handleSearchCustomers = async () => {
+    if (!customerSearchTerm.trim()) return
+    
+    setIsSearching(true)
+    try {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("customers")
+        .select("*")
+        .or(`first_name.ilike.%${customerSearchTerm}%,last_name.ilike.%${customerSearchTerm}%,email.ilike.%${customerSearchTerm}%`)
+        .order("last_name")
+      
+      setSearchResults(data || [])
+    } catch (error) {
+      console.error("Error searching customers:", error)
+      toast({
+        title: "Error",
+        description: "Failed to search customers",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSearching(false)
+    }
+  }
+  
+  const handleAssignCustomerToUnit = async (customerId, unitId) => {
+    try {
+      const supabase = createClient()
+      
+      // Create rental record
+      const { error: rentalError } = await supabase.from("rentals").insert([{
+        customer_id: customerId,
+        unit_id: unitId,
+        start_date: new Date().toISOString().split("T")[0],
+        monthly_rate: unitToAssign.monthly_rate,
+        status: "active"
+      }])
+      
+      if (rentalError) throw rentalError
+      
+      // Update unit status
+      const { error: unitError } = await supabase
+        .from("storage_units")
+        .update({ status: "occupied" })
+        .eq("id", unitId)
+        
+      if (unitError) throw unitError
+      
+      toast({
+        title: "Success",
+        description: "Customer assigned to unit successfully"
+      })
+      
+      // Refresh units
+      await fetchUnits()
+      
+    } catch (error) {
+      console.error("Error assigning customer:", error)
+      toast({
+        title: "Error",
+        description: "Failed to assign customer to unit",
+        variant: "destructive"
+      })
+    } finally {
+      setUnitToAssign(null)
+      setCustomerSearchTerm("")
+      setSearchResults([])
     }
   }
 
@@ -103,33 +223,12 @@ export function UnitsGrid() {
     return aNum - bNum
   })
 
-  // Group units by status for easier filtering if desired
-  const availableUnits = sortedUnits.filter(unit => unit.status === "available")
-  const occupiedUnits = sortedUnits.filter(unit => unit.status === "occupied") 
-  const maintenanceUnits = sortedUnits.filter(unit => unit.status === "maintenance")
-
   return (
     <>
-      <div className="mb-6 flex justify-between items-center">
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">All Units ({sortedUnits.length})</h2>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              Available: {availableUnits.length}
-            </Badge>
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-              Occupied: {occupiedUnits.length}
-            </Badge>
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-              Maintenance: {maintenanceUnits.length}
-            </Badge>
-          </div>
-        </div>
-      </div>
-      
       <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
         {sortedUnits.map((unit) => {
           const activeRental = unit.rentals?.find((r) => r.status === "active")
+          const customer = activeRental?.customers
 
           return (
             <Card key={unit.id} className="relative overflow-hidden hover:shadow-md transition-shadow">
@@ -170,37 +269,71 @@ export function UnitsGrid() {
                   </div>
                 )}
 
-                {activeRental ? (
+                {customer ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mt-2">
-                    <div className="flex items-center gap-1 mb-1">
-                      <User className="h-3 w-3 text-blue-600" />
-                      <span className="text-xs font-medium text-blue-800">RENTED TO:</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3 text-blue-600" />
+                        <span className="text-xs font-medium text-blue-800">RENTED TO:</span>
+                      </div>
+                      <button
+                        onClick={() => setRentalToUnlink({ 
+                          id: activeRental.id, 
+                          unitId: unit.id, 
+                          unitNumber: unit.unit_number, 
+                          customerName: `${customer.first_name} ${customer.last_name}` 
+                        })}
+                        className="text-red-500 hover:text-red-700 focus:outline-none"
+                        title="Unlink customer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </div>
-                    <p className="text-xs font-semibold text-blue-900 truncate">
-                      {activeRental.customers.first_name} {activeRental.customers.last_name}
-                    </p>
                     
-                    {activeRental && activeRental.customers && activeRental.customers.id ? (
-                      <Link href={`/customers/${activeRental.customers.id}`} className="mt-1 block">
-                        <Button variant="ghost" size="sm" className="w-full h-6 text-xs text-blue-600 hover:bg-blue-100 hover:text-blue-800 p-0">
-                          View Customer Details
+                    <p className="text-xs font-semibold text-blue-900 truncate">
+                      {customer.first_name} {customer.last_name}
+                    </p>
+                    <p className="text-xs text-blue-700 truncate">{customer.email}</p>
+                    {customer.phone && (
+                      <p className="text-xs text-blue-700 truncate">{customer.phone}</p>
+                    )}
+                    
+                    <div className="mt-2 text-xs">
+                      <Link href={`/customers/${customer.id}`}>
+                        <Button variant="outline" size="sm" className="w-full h-6 text-xs">
+                          <Edit className="h-3 w-3 mr-1" />
+                          View Details
                         </Button>
                       </Link>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">No customer info</span>
-                    )}
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-2">
-                    <div className="flex items-center justify-center">
+                    <div className="flex items-center justify-center mb-2">
                       <span className="text-xs font-medium text-green-800">AVAILABLE</span>
                     </div>
                     
-                    <Link href={`/customers/new?assign=true&unit=${unit.id}`} className="mt-1 block">
-                      <Button variant="ghost" size="sm" className="w-full h-6 text-xs text-green-600 hover:bg-green-100 hover:text-green-800 p-0">
-                        Assign to Customer
+                    <div className="space-y-1">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full h-6 text-xs bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                        onClick={() => setUnitToAssign(unit)}
+                      >
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Assign Customer
                       </Button>
-                    </Link>
+                      <Link href={`/customers/new?unit=${unit.id}`} className="block">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full h-6 text-xs bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          New Customer
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 )}
 
@@ -253,6 +386,102 @@ export function UnitsGrid() {
               disabled={isDeleting}
             >
               {isDeleting ? "Deleting..." : "Delete Unit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unlink Customer Dialog */}
+      <Dialog open={!!rentalToUnlink} onOpenChange={() => setRentalToUnlink(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unlink Customer</DialogTitle>
+            <DialogDescription>
+              {rentalToUnlink && 
+                `Are you sure you want to unlink ${rentalToUnlink.customerName} from unit ${rentalToUnlink.unitNumber}? 
+                This will make the unit available for other customers.`
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRentalToUnlink(null)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => handleUnlinkRental(rentalToUnlink.id, rentalToUnlink.unitId)}
+              disabled={isUnlinking}
+            >
+              {isUnlinking ? "Unlinking..." : "Unlink Customer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Assign Customer Dialog */}
+      <Dialog open={!!unitToAssign} onOpenChange={() => setUnitToAssign(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Customer to Unit {unitToAssign?.unit_number}</DialogTitle>
+            <DialogDescription>
+              Search for an existing customer to assign to this unit
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input 
+                  placeholder="Search by name or email" 
+                  value={customerSearchTerm}
+                  onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button onClick={handleSearchCustomers} disabled={isSearching}>
+                {isSearching ? "Searching..." : "Search"}
+              </Button>
+            </div>
+            
+            {searchResults.length > 0 ? (
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {searchResults.map(customer => (
+                  <Card key={customer.id} className="p-2">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-medium">{customer.first_name} {customer.last_name}</p>
+                        <p className="text-xs text-muted-foreground">{customer.email}</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleAssignCustomerToUnit(customer.id, unitToAssign.id)}
+                      >
+                        Assign
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center p-4">
+                <p className="text-muted-foreground mb-4">
+                  {customerSearchTerm ? "No matching customers found" : "Search for customers to assign"}
+                </p>
+              </div>
+            )}
+            
+            <div className="flex justify-center pt-4">
+              <Link href={`/customers/new?unit=${unitToAssign?.id}`} className="w-full">
+                <Button variant="outline" className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Customer
+                </Button>
+              </Link>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnitToAssign(null)}>
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
