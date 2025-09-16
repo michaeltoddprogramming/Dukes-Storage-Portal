@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { toast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
+import { formatCurrency } from "@/lib/utils"
 
 interface CustomerFormProps {
   customer?: any
@@ -39,19 +40,35 @@ export function CustomerForm({ customer }: CustomerFormProps) {
   useEffect(() => {
     if (unitIdFromUrl) {
       const fetchUnit = async () => {
-        const supabase = createClient()
-        const { data: unitData } = await supabase
-          .from("storage_units")
-          .select(`
-            *,
-            facilities!inner(name)
-          `)
-          .eq("id", unitIdFromUrl)
-          .single()
+        try {
+          const supabase = createClient()
+          const { data: unitData, error } = await supabase
+            .from("storage_units")
+            .select(`
+              *,
+              facilities!inner(name)
+            `)
+            .eq("id", unitIdFromUrl)
+            .single()
 
-        if (unitData) {
-          setPreSelectedUnit(unitData)
-          setAssignUnit(true)
+          if (error) throw error
+
+          if (unitData) {
+            setPreSelectedUnit(unitData)
+            setAssignUnit(true)
+            
+            toast({
+              title: "Unit Pre-selected",
+              description: `Unit ${unitData.unit_number} will be assigned to this customer`,
+            })
+          }
+        } catch (error) {
+          console.error("Error fetching unit:", error)
+          toast({
+            title: "Unit Loading Failed",
+            description: "Could not load the selected unit. Please try again.",
+            variant: "destructive"
+          })
         }
       }
 
@@ -61,22 +78,59 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validation
+    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.email.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields (first name, last name, and email)",
+        variant: "destructive"
+      })
+      return
+    }
+
+    if (assignUnit && !leaseStatus) {
+      toast({
+        title: "Lease Status Required",
+        description: "Please select a lease status when assigning a unit",
+        variant: "destructive"
+      })
+      return
+    }
+    
     setIsLoading(true)
+    
+    const loadingToast = toast({
+      title: customer ? "Updating Customer..." : "Creating Customer...",
+      description: assignUnit ? "Creating customer and assigning unit" : "Saving customer information",
+    })
 
     try {
       const supabase = createClient()
 
       let result
       if (customer) {
+        // Update existing customer
         result = await supabase.from("customers").update(formData).eq("id", customer.id)
+        
+        if (result.error) throw result.error
+        
+        toast({
+          title: "Customer Updated Successfully",
+          description: `${formData.first_name} ${formData.last_name}'s information has been updated`,
+        })
       } else {
+        // Create new customer
         result = await supabase.from("customers").insert([formData]).select()
 
         if (result.error) throw result.error
 
+        const newCustomer = result.data?.[0]
+        if (!newCustomer) throw new Error("Customer creation failed")
+
         // If unit assignment is requested, create rental
-        if (assignUnit && preSelectedUnit && result.data?.[0]) {
-          const customerId = result.data[0].id
+        if (assignUnit && preSelectedUnit) {
+          const customerId = newCustomer.id
           
           // Create rental record
           const { error: rentalError } = await supabase.from("rentals").insert([
@@ -103,7 +157,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           if (firstMonthPayment) {
             const { error: paymentError } = await supabase.from("payments").insert([
               {
-                rental_id: customerId, // This should be the rental ID, but we'd need to fetch it
+                rental_id: customerId,
                 amount: preSelectedUnit.monthly_rate,
                 payment_date: paymentDate,
                 payment_type: "rent",
@@ -112,28 +166,50 @@ export function CustomerForm({ customer }: CustomerFormProps) {
               },
             ])
 
-            if (paymentError) console.warn("Payment creation failed:", paymentError)
+            if (paymentError) {
+              console.warn("Payment creation failed:", paymentError)
+              toast({
+                title: "Payment Warning",
+                description: "Customer created and unit assigned, but payment recording failed",
+                variant: "destructive"
+              })
+            }
           }
+
+          toast({
+            title: "Customer Created & Unit Assigned",
+            description: `${formData.first_name} ${formData.last_name} has been created and assigned to unit ${preSelectedUnit.unit_number}`,
+          })
+        } else {
+          toast({
+            title: "Customer Created Successfully",
+            description: `${formData.first_name} ${formData.last_name} has been added to the system`,
+          })
         }
       }
-
-      if (result.error) throw result.error
-
-      toast({
-        title: "Success",
-        description: `Customer ${customer ? "updated" : "created"} successfully${assignUnit ? " and unit assigned" : ""}`,
-      })
 
       router.push("/units")
     } catch (error) {
       console.error("Error saving customer:", error)
+      
+      let errorMessage = "An unexpected error occurred"
+      
+      if (error.message?.includes("duplicate key")) {
+        errorMessage = "A customer with this email already exists"
+      } else if (error.message?.includes("violates check constraint")) {
+        errorMessage = "Please check that all information is valid"
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to save customer",
+        title: customer ? "Update Failed" : "Creation Failed",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
       setIsLoading(false)
+      loadingToast.dismiss()
     }
   }
 
@@ -155,7 +231,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
             <h3 className="text-lg font-medium">Customer Information</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="first_name">First Name</Label>
+                <Label htmlFor="first_name">First Name *</Label>
                 <Input
                   id="first_name"
                   value={formData.first_name}
@@ -165,7 +241,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="last_name">Last Name</Label>
+                <Label htmlFor="last_name">Last Name *</Label>
                 <Input
                   id="last_name"
                   value={formData.last_name}
@@ -177,7 +253,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email *</Label>
                 <Input
                   id="email"
                   type="email"
@@ -220,7 +296,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="payment_date">Start Date</Label>
+                  <Label htmlFor="payment_date">Start Date *</Label>
                   <Input
                     id="payment_date"
                     type="date"
@@ -231,7 +307,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="lease_status">Lease Status</Label>
+                  <Label htmlFor="lease_status">Lease Status *</Label>
                   <Select value={leaseStatus} onValueChange={setLeaseStatus} required={assignUnit}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select lease status" />

@@ -12,8 +12,15 @@ import { toast } from "@/hooks/use-toast"
 import { deleteUnit, terminateRental } from "@/app/actions/rental-actions"
 import { Edit, Trash2, Zap, User, UserPlus, X, Plus } from "lucide-react"
 import Link from "next/link"
-import { formatCurrency } from "@/lib/utils"
 import { useRouter } from "next/navigation"
+
+// Add formatCurrency function directly or ensure proper import
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+  }).format(amount)
+}
 
 export function UnitsGrid() {
   const router = useRouter()
@@ -36,7 +43,7 @@ export function UnitsGrid() {
     try {
       setLoading(true)
       const supabase = createClient()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("storage_units")
         .select(`
           *,
@@ -50,12 +57,22 @@ export function UnitsGrid() {
         `)
         .order("unit_number")
       
+      if (error) throw error
+      
       setUnits(data || [])
+      
+      // Success toast for initial load
+      if (data && data.length > 0) {
+        toast({
+          title: "Units Loaded",
+          description: `Successfully loaded ${data.length} storage units`,
+        })
+      }
     } catch (error) {
       console.error("Error fetching units:", error)
       toast({
-        title: "Error",
-        description: "Failed to load units data",
+        title: "Loading Failed",
+        description: "Failed to load storage units. Please refresh the page.",
         variant: "destructive"
       })
     } finally {
@@ -65,37 +82,53 @@ export function UnitsGrid() {
   
   const handleDeleteUnit = async (unitId) => {
     setIsDeleting(true)
+    
+    const loadingToast = toast({
+      title: "Deleting Unit...",
+      description: "Please wait while we delete the unit",
+    })
+    
     try {
       const result = await deleteUnit(unitId)
+      
       if (result.success) {
         toast({
-          title: "Success",
-          description: "Unit deleted successfully"
+          title: "Unit Deleted Successfully",
+          description: `Unit ${unitToDelete?.unit_number} has been permanently deleted`,
         })
         setUnits(units.filter(unit => unit.id !== unitId))
       } else {
-        throw new Error("Failed to delete unit")
+        throw new Error(result.error?.message || "Failed to delete unit")
       }
     } catch (error) {
+      console.error("Error deleting unit:", error)
       toast({
-        title: "Error",
-        description: "Failed to delete unit",
+        title: "Deletion Failed",
+        description: error.message || "Could not delete the unit. Please try again.",
         variant: "destructive"
       })
     } finally {
       setIsDeleting(false)
       setUnitToDelete(null)
+      loadingToast.dismiss()
     }
   }
 
   const handleUnlinkRental = async (rentalId, unitId) => {
     setIsUnlinking(true)
+    
+    const loadingToast = toast({
+      title: "Unlinking Customer...",
+      description: "Terminating rental and updating unit status",
+    })
+    
     try {
       const result = await terminateRental(rentalId)
+      
       if (result.success) {
         toast({
-          title: "Success",
-          description: "Customer unlinked from unit"
+          title: "Customer Unlinked Successfully",
+          description: `Customer has been removed from ${rentalToUnlink?.unitNumber}. Unit is now available.`,
         })
         
         // Update local state
@@ -114,38 +147,62 @@ export function UnitsGrid() {
           return unit
         }))
       } else {
-        throw new Error("Failed to unlink customer")
+        throw new Error(result.error?.message || "Failed to unlink customer")
       }
     } catch (error) {
+      console.error("Error unlinking rental:", error)
       toast({
-        title: "Error",
-        description: "Failed to unlink customer",
+        title: "Unlinking Failed",
+        description: error.message || "Could not unlink customer from unit. Please try again.",
         variant: "destructive"
       })
     } finally {
       setIsUnlinking(false)
       setRentalToUnlink(null)
+      loadingToast.dismiss()
     }
   }
   
   const handleSearchCustomers = async () => {
-    if (!customerSearchTerm.trim()) return
+    if (!customerSearchTerm.trim()) {
+      toast({
+        title: "Search Required",
+        description: "Please enter a customer name or email to search",
+        variant: "destructive"
+      })
+      return
+    }
     
     setIsSearching(true)
+    
     try {
       const supabase = createClient()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("customers")
         .select("*")
         .or(`first_name.ilike.%${customerSearchTerm}%,last_name.ilike.%${customerSearchTerm}%,email.ilike.%${customerSearchTerm}%`)
         .order("last_name")
       
+      if (error) throw error
+      
       setSearchResults(data || [])
+      
+      if (data && data.length > 0) {
+        toast({
+          title: "Search Complete",
+          description: `Found ${data.length} matching customer${data.length === 1 ? '' : 's'}`,
+        })
+      } else {
+        toast({
+          title: "No Results",
+          description: "No customers found matching your search criteria",
+        })
+      }
     } catch (error) {
       console.error("Error searching customers:", error)
       toast({
-        title: "Error",
-        description: "Failed to search customers",
+        title: "Search Failed",
+        description: "Could not search customers. Please try again.",
         variant: "destructive"
       })
     } finally {
@@ -154,6 +211,11 @@ export function UnitsGrid() {
   }
   
   const handleAssignCustomerToUnit = async (customerId, unitId) => {
+    const loadingToast = toast({
+      title: "Assigning Customer...",
+      description: "Creating rental and updating unit status",
+    })
+    
     try {
       const supabase = createClient()
       
@@ -176,9 +238,11 @@ export function UnitsGrid() {
         
       if (unitError) throw unitError
       
+      const assignedCustomer = searchResults.find(c => c.id === customerId)
+      
       toast({
-        title: "Success",
-        description: "Customer assigned to unit successfully"
+        title: "Assignment Successful",
+        description: `${assignedCustomer?.first_name} ${assignedCustomer?.last_name} has been assigned to unit ${unitToAssign.unit_number}`,
       })
       
       // Refresh units
@@ -187,14 +251,15 @@ export function UnitsGrid() {
     } catch (error) {
       console.error("Error assigning customer:", error)
       toast({
-        title: "Error",
-        description: "Failed to assign customer to unit",
+        title: "Assignment Failed",
+        description: error.message || "Could not assign customer to unit. Please try again.",
         variant: "destructive"
       })
     } finally {
       setUnitToAssign(null)
       setCustomerSearchTerm("")
       setSearchResults([])
+      loadingToast.dismiss()
     }
   }
 
