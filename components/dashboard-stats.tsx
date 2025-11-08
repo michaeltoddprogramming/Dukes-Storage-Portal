@@ -37,17 +37,13 @@ export function DashboardStats() {
         // Get total customers
         const { count: totalCustomers } = await supabase.from("customers").select("*", { count: "exact", head: true })
 
-        // Get this month's revenue
-        const now = new Date()
-        const currentMonth = now.toISOString().slice(0, 7) // YYYY-MM format
-        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10)
-        const { data: monthlyPayments } = await supabase
-          .from("payments")
-          .select("amount")
-          .gte("payment_date", `${currentMonth}-01`)
-          .lt("payment_date", nextMonth)
+        // Get expected monthly revenue from occupied units
+        const { data: occupiedUnitsData } = await supabase
+          .from("storage_units")
+          .select("monthly_rate")
+          .eq("status", "occupied")
 
-        const monthlyRevenue = monthlyPayments?.reduce((sum, payment) => sum + Number(payment.amount), 0) || 0
+        const monthlyRevenue = occupiedUnitsData?.reduce((sum, unit) => sum + Number(unit.monthly_rate), 0) || 0
 
         // Calculate occupancy rate
         const occupancyRate = totalUnits ? Math.round(((occupiedUnits || 0) / totalUnits) * 100) : 0
@@ -61,17 +57,17 @@ export function DashboardStats() {
             trend: (occupancyRate > 80 ? "high" : occupancyRate > 60 ? "medium" : "low") as "high" | "medium" | "low",
           },
           {
-            title: "Active Customers",
+            title: "Customers",
             value: totalCustomers || 0,
             icon: Users,
             description: "Total registered",
             trend: "medium",
           },
           {
-            title: "Monthly Revenue",
+            title: "Revenue",
             value: formatCurrency(monthlyRevenue),
             icon: DollarSign,
-            description: "Current month",
+            description: "Per month",
             trend: "high",
           },
           {
