@@ -38,12 +38,14 @@ export function DashboardStats() {
         const { count: totalCustomers } = await supabase.from("customers").select("*", { count: "exact", head: true })
 
         // Get this month's revenue
-        const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM format
+        const now = new Date()
+        const currentMonth = now.toISOString().slice(0, 7) // YYYY-MM format
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10)
         const { data: monthlyPayments } = await supabase
           .from("payments")
           .select("amount")
           .gte("payment_date", `${currentMonth}-01`)
-          .lt("payment_date", `${currentMonth}-32`)
+          .lt("payment_date", nextMonth)
 
         const monthlyRevenue = monthlyPayments?.reduce((sum, payment) => sum + Number(payment.amount), 0) || 0
 

@@ -7,22 +7,25 @@ export async function PaymentsSummary() {
   const supabase = await createClient()
 
   // Get current month payments
-  const currentMonth = new Date().toISOString().slice(0, 7)
+  const now = new Date()
+  const currentMonth = now.toISOString().slice(0, 7)
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10)
   const { data: currentMonthPayments } = await supabase
     .from("payments")
     .select("amount, payment_type")
     .gte("payment_date", `${currentMonth}-01`)
-    .lt("payment_date", `${currentMonth}-32`)
+    .lt("payment_date", nextMonth)
 
   // Get last month payments for comparison
   const lastMonth = new Date()
   lastMonth.setMonth(lastMonth.getMonth() - 1)
   const lastMonthStr = lastMonth.toISOString().slice(0, 7)
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
   const { data: lastMonthPayments } = await supabase
     .from("payments")
     .select("amount")
     .gte("payment_date", `${lastMonthStr}-01`)
-    .lt("payment_date", `${lastMonthStr}-32`)
+    .lt("payment_date", currentMonthStart)
 
   // Get today's payments
   const today = new Date().toISOString().slice(0, 10)

@@ -47,11 +47,9 @@ export default function SignUpPage() {
 
       if (authError) throw authError
 
-      // Note: We can't create the admin_users record here because the user
-      // needs to confirm their email first. This should be handled by a trigger
-      // or done after email confirmation.
-
-      router.push("/auth/signup-success")
+      // With email autoconfirm enabled, user is automatically logged in
+      // Redirect to home page instead of signup-success
+      router.push("/")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
