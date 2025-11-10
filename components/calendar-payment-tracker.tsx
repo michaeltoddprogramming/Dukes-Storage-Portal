@@ -1,14 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Check, X, Clock, ChevronLeft, ChevronRight } from "lucide-react"
-import { markPaymentPaid, markPaymentMissed } from "@/app/actions/payment-actions"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Check, X, Clock, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "@/hooks/use-toast"
 
 interface Rental {
   id: string
+  start_date: string
   customers: {
     first_name: string
     last_name: string
@@ -34,6 +38,9 @@ interface CalendarPaymentTrackerProps {
 export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTrackerProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [processingPayments, setProcessingPayments] = useState<Set<string>>(new Set())
+  const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending" | "missed">("all")
+  const [dueDateFilter, setDueDateFilter] = useState<"all" | "overdue" | "due-soon" | "due-later">("all")
 
   // Get current month and previous 2 months
   const getMonthsToShow = () => {
@@ -77,23 +84,112 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
       const rental = rentals.find((r) => r.id === rentalId)
       if (!rental) {
         console.log("[v0] Rental not found:", rentalId)
+        toast({
+          title: "Error",
+          description: "Rental not found",
+          variant: "destructive",
+        })
         return
       }
 
-      console.log(`[v0] Calling server action for ${status}`)
+      const supabase = createClient()
+      
+      // Calculate the first and last day of the month for proper date range filtering
+      const firstDayOfMonth = new Date(month.getFullYear(), month.getMonth(), 1)
+      const lastDayOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0)
+      const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`
 
-      if (status === "paid") {
-        await markPaymentPaid(rentalId, month, rental.storage_units.monthly_rate)
-      } else {
-        await markPaymentMissed(rentalId, month)
+      console.log(`[v0] Processing ${status} payment for rental ${rentalId}, month: ${monthKey}`)
+
+      // Check if payment already exists for this month using date range
+      const { data: existingPayments, error: fetchError } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("rental_id", rentalId)
+        .gte("payment_date", firstDayOfMonth.toISOString().split("T")[0])
+        .lte("payment_date", lastDayOfMonth.toISOString().split("T")[0])
+        .eq("payment_type", "rent")
+
+      if (fetchError) {
+        console.error("[v0] Error checking existing payment:", fetchError)
+        throw new Error("Failed to check existing payment")
       }
 
-      console.log(`[v0] Server action completed successfully`)
+      const existingPayment = existingPayments && existingPayments.length > 0 ? existingPayments[0] : null
+
+      if (status === "paid") {
+        const paymentDate = new Date().toISOString().split("T")[0]
+        
+        if (existingPayment) {
+          // Update existing payment
+          const { error: updateError } = await supabase
+            .from("payments")
+            .update({
+              amount: rental.storage_units.monthly_rate,
+              payment_date: paymentDate,
+              payment_method: "cash",
+              notes: `Payment for ${month.toLocaleDateString("en-US", { month: "long", year: "numeric" })} - marked as paid`,
+            })
+            .eq("id", existingPayment.id)
+
+          if (updateError) {
+            console.error("[v0] Error updating payment:", updateError)
+            throw new Error("Failed to update payment")
+          }
+        } else {
+          // Create new payment
+          const { error: insertError } = await supabase
+            .from("payments")
+            .insert({
+              rental_id: rentalId,
+              amount: rental.storage_units.monthly_rate,
+              payment_date: paymentDate,
+              payment_type: "rent",
+              payment_method: "cash",
+              notes: `Payment for ${month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`,
+            })
+
+          if (insertError) {
+            console.error("[v0] Error creating payment:", insertError)
+            throw new Error("Failed to record payment")
+          }
+        }
+
+        toast({
+          title: "Payment Recorded",
+          description: `Payment marked as paid for ${month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`,
+        })
+      } else {
+        // Mark as missed - delete payment if it exists
+        if (existingPayment) {
+          const { error: deleteError } = await supabase
+            .from("payments")
+            .delete()
+            .eq("id", existingPayment.id)
+
+          if (deleteError) {
+            console.error("[v0] Error deleting payment:", deleteError)
+            throw new Error("Failed to mark payment as missed")
+          }
+        }
+
+        toast({
+          title: "Payment Marked as Missed",
+          description: `Payment removed for ${month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`,
+        })
+      }
+
+      console.log(`[v0] Payment ${status} completed successfully`)
 
       // Refresh the page to show updated data
       window.location.reload()
     } catch (error) {
       console.error("[v0] Error updating payment:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update payment",
+        variant: "destructive",
+      })
     } finally {
       setProcessingPayments((prev) => {
         const newSet = new Set(prev)
@@ -114,6 +210,56 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
       return newDate
     })
   }
+
+  // Filter rentals based on search, status, and due date
+  const filteredRentals = useMemo(() => {
+    return rentals.filter((rental) => {
+      // Search filter
+      const searchLower = searchTerm.toLowerCase()
+      const matchesSearch =
+        searchTerm === "" ||
+        rental.customers.first_name.toLowerCase().includes(searchLower) ||
+        rental.customers.last_name.toLowerCase().includes(searchLower) ||
+        rental.storage_units.unit_number.toLowerCase().includes(searchLower)
+
+      if (!matchesSearch) return false
+
+      // Status filter for the current month (rightmost month)
+      if (statusFilter !== "all") {
+        const currentMonth = months[2]
+        const status = getPaymentStatus(rental.id, currentMonth)
+        if (status !== statusFilter) return false
+      }
+
+      // Due date filter for current month
+      if (dueDateFilter !== "all") {
+        const startDate = new Date(rental.start_date)
+        const dueDay = startDate.getDate()
+        const today = new Date()
+        const currentDay = today.getDate()
+        const currentMonth = months[2]
+        
+        // Check payment status
+        const status = getPaymentStatus(rental.id, currentMonth)
+        
+        // Skip if already paid (not relevant for due date filtering)
+        if (status === "paid") return false
+
+        if (dueDateFilter === "overdue") {
+          // Due date has passed and not paid
+          return currentDay > dueDay
+        } else if (dueDateFilter === "due-soon") {
+          // Due within next 7 days
+          return dueDay >= currentDay && dueDay <= currentDay + 7
+        } else if (dueDateFilter === "due-later") {
+          // Due more than 7 days from now
+          return dueDay > currentDay + 7
+        }
+      }
+
+      return true
+    })
+  }, [rentals, searchTerm, statusFilter, dueDateFilter, months])
 
   return (
     <div className="space-y-8">
@@ -144,6 +290,79 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
           </Button>
         </div>
       </div>
+
+      {/* Search and Filter Section */}
+      <Card className="border-2">
+        <CardContent className="p-6">
+          <div className="flex flex-col gap-4">
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by customer name or unit number..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-11"
+              />
+            </div>
+
+            {/* Filters Row */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* Status Filter */}
+              <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+                <SelectTrigger className="w-full sm:w-[180px] h-11">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    <SelectValue placeholder="Payment Status" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="paid">✓ Paid</SelectItem>
+                  <SelectItem value="pending">⏳ Pending</SelectItem>
+                  <SelectItem value="missed">✗ Missed</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Due Date Filter */}
+              <Select value={dueDateFilter} onValueChange={(value: any) => setDueDateFilter(value)}>
+                <SelectTrigger className="w-full sm:w-[180px] h-11">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <SelectValue placeholder="Due Date" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Due Dates</SelectItem>
+                  <SelectItem value="overdue">🔴 Overdue (unpaid)</SelectItem>
+                  <SelectItem value="due-soon">🟡 Due Soon (next 7 days)</SelectItem>
+                  <SelectItem value="due-later">🟢 Due Later (&gt;7 days)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Clear Filters Button */}
+              {(statusFilter !== "all" || dueDateFilter !== "all" || searchTerm !== "") && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setStatusFilter("all")
+                    setDueDateFilter("all")
+                    setSearchTerm("")
+                  }}
+                  className="h-11 px-4"
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Results count */}
+          <div className="mt-3 text-sm text-muted-foreground">
+            Showing {filteredRentals.length} of {rentals.length} rental{rentals.length !== 1 ? 's' : ''}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Legend - Enhanced with card design */}
       <Card className="border-2">
@@ -183,11 +402,17 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
           </div>
         </CardHeader>
         <CardContent className="space-y-1 p-6">
-          {rentals.map((rental) => (
-            <div
-              key={rental.id}
-              className="grid grid-cols-4 gap-4 items-center py-4 px-2 border-b border-border/50 last:border-0 hover:bg-muted/30 rounded-lg transition-colors"
-            >
+          {filteredRentals.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground text-lg">No rentals match your search criteria</p>
+              <p className="text-sm text-muted-foreground mt-2">Try adjusting your filters or search term</p>
+            </div>
+          ) : (
+            filteredRentals.map((rental) => (
+              <div
+                key={rental.id}
+                className="grid grid-cols-4 gap-4 items-center py-4 px-2 border-b border-border/50 last:border-0 hover:bg-muted/30 rounded-lg transition-colors"
+              >
               {/* Customer Info - Enhanced with better hierarchy */}
               <div className="space-y-1.5">
                 <div className="font-semibold text-base">
@@ -196,7 +421,21 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">Unit {rental.storage_units.unit_number}</span>
                   <span>•</span>
-                  <span className="font-semibold text-primary">${rental.storage_units.monthly_rate}/mo</span>
+                  <span className="font-semibold text-primary">R{rental.storage_units.monthly_rate}/mo</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <Clock className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">
+                    Due: {(() => {
+                      const startDate = new Date(rental.start_date)
+                      const currentMonth = months[2] // Current month from the displayed months
+                      const dueDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), startDate.getDate())
+                      return dueDate.toLocaleDateString("en-US", { 
+                        month: "short", 
+                        day: "numeric" 
+                      })
+                    })()} monthly
+                  </span>
                 </div>
               </div>
 
@@ -254,7 +493,8 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
                 )
               })}
             </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
 

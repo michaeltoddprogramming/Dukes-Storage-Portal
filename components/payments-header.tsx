@@ -4,7 +4,7 @@ import Link from "next/link"
 
 export function PaymentsHeader() {
   return (
-    <div className="border-b bg-gradient-to-r from-card via-card/95 to-card shadow-sm sticky top-16 z-40 backdrop-blur-md">
+    <div className="border-b bg-card shadow-sm">
       <div className="container mx-auto px-6 py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           {/* Title Section - Following Gestalt Proximity */}

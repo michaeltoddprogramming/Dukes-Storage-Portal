@@ -93,27 +93,24 @@ export function DashboardStats() {
           .select("*", { count: "exact", head: true })
           .eq("status", "active")
 
-        // Get overdue payments (payments expected but not received)
+        // Get all active rentals
         const { data: allRentals } = await supabase
           .from("rentals")
           .select("id, start_date")
           .eq("status", "active")
 
-        // Calculate overdue rentals based on start_date
-        // Payment is due monthly on the same day as start_date
-        const overdueCount = allRentals?.filter(rental => {
-          const startDate = new Date(rental.start_date)
-          const currentDate = new Date()
-          
-          // Calculate the next payment date
-          const nextPaymentDate = new Date(startDate)
-          nextPaymentDate.setMonth(currentDate.getMonth())
-          nextPaymentDate.setFullYear(currentDate.getFullYear())
-          
-          // If the payment date for this month has passed, it's overdue
-          // (This is a simple calculation - you may want to check against actual payments table)
-          return nextPaymentDate < now
-        }).length || 0
+        // Get all payments for the current month
+        const { data: currentMonthPaymentsData } = await supabase
+          .from("payments")
+          .select("rental_id")
+          .gte("payment_date", currentMonthStart)
+          .lt("payment_date", nextMonthStart)
+          .eq("payment_type", "rent")
+
+        const paidRentalIds = new Set(currentMonthPaymentsData?.map(p => p.rental_id) || [])
+
+        // Calculate unpaid rentals this month (all active rentals minus those who have paid)
+        const unpaidCount = (allRentals?.length || 0) - paidRentalIds.size
 
         const statsData: Stat[] = [
           {
@@ -143,8 +140,8 @@ export function DashboardStats() {
             title: "Active Rentals",
             value: activeRentals || 0,
             icon: Users,
-            description: overdueCount > 0 ? `${overdueCount} overdue payments` : "All payments current",
-            trend: overdueCount === 0 ? "high" : overdueCount < 3 ? "medium" : "low",
+            description: unpaidCount > 0 ? `${unpaidCount} unpaid this month` : "All payments current",
+            trend: unpaidCount === 0 ? "high" : unpaidCount < (activeRentals || 0) * 0.2 ? "medium" : "low",
           },
           {
             title: "Available Units",

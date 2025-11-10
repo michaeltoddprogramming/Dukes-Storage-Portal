@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react"
 
 interface Rental {
   id: string
+  start_date: string
   customers: {
     first_name: string
     last_name: string
@@ -45,10 +46,32 @@ export default function PaymentsPage() {
           storage_units!inner(unit_number, monthly_rate)
         `)
         .eq("status", "active")
-        .order("storage_units(unit_number)")
 
       console.log("[v0] Rentals data:", rentalsData)
       console.log("[v0] Rentals error:", rentalsError)
+
+      // Sort rentals by unit number on the client side
+      const sortedRentals = rentalsData?.sort((a, b) => {
+        const unitA = a.storage_units.unit_number
+        const unitB = b.storage_units.unit_number
+        
+        // Extract numbers from unit strings (e.g., "DUKE 1" -> 1, "DUKE 20" -> 20)
+        const extractNumber = (unit: string) => {
+          const match = unit.match(/\d+/)
+          return match ? parseInt(match[0]) : 0
+        }
+        
+        const numA = extractNumber(unitA)
+        const numB = extractNumber(unitB)
+        
+        // Sort numerically if both have numbers
+        if (numA !== numB) {
+          return numA - numB
+        }
+        
+        // Fall back to string comparison if numbers are equal
+        return unitA.localeCompare(unitB)
+      }) || []
 
       // Get all payments for the last 3 months
       const threeMonthsAgo = new Date()
@@ -68,7 +91,7 @@ export default function PaymentsPage() {
       console.log("[v0] Payments data:", paymentsData)
       console.log("[v0] Payments error:", paymentsError)
 
-      setRentals(rentalsData || [])
+      setRentals(sortedRentals)
       setPayments(paymentsData || [])
       setIsLoading(false)
     }

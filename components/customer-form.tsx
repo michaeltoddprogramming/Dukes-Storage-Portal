@@ -141,8 +141,8 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         if (assignUnit && preSelectedUnit) {
           const customerId = newCustomer.id
           
-          // Create rental record
-          const { error: rentalError } = await supabase.from("rentals").insert([
+          // Create rental record and get the rental ID
+          const { data: rentalData, error: rentalError } = await supabase.from("rentals").insert([
             {
               customer_id: customerId,
               unit_id: preSelectedUnit.id,
@@ -150,9 +150,12 @@ export function CustomerForm({ customer }: CustomerFormProps) {
               monthly_rate: preSelectedUnit.monthly_rate,
               status: "active",
             },
-          ])
+          ]).select()
 
           if (rentalError) throw rentalError
+          
+          const newRental = rentalData?.[0]
+          if (!newRental) throw new Error("Rental creation failed")
 
           // Update unit status to occupied
           const { error: unitError } = await supabase
@@ -166,7 +169,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
           if (firstMonthPayment) {
             const { error: paymentError } = await supabase.from("payments").insert([
               {
-                rental_id: customerId,
+                rental_id: newRental.id,
                 amount: preSelectedUnit.monthly_rate,
                 payment_date: paymentDate,
                 payment_type: "rent",
