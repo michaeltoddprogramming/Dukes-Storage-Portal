@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
-import { deleteCustomer } from "@/app/actions/rental-actions"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 import { ArrowLeft, Edit, Phone, Mail, Trash2, X, Plus, Calendar } from "lucide-react"
@@ -58,20 +57,70 @@ export function CustomerDetails({ customerId }: { customerId: string }) {
   const handleDeleteCustomer = async () => {
     setIsDeleting(true)
     try {
-      const result = await deleteCustomer(customerId)
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: "Customer deleted successfully"
-        })
-        router.push("/units")
-      } else {
-        throw new Error("Failed to delete customer")
+      const supabase = createClient()
+      
+      // Get customer details first
+      const { data: customerData, error: customerError } = await supabase
+        .from("customers")
+        .select("first_name, last_name")
+        .eq("id", customerId)
+        .single()
+      
+      if (customerError) throw new Error(`Failed to fetch customer: ${customerError.message}`)
+      if (!customerData) throw new Error("Customer not found")
+
+      // First terminate all active rentals for this customer
+      const { data: activeRentals, error: rentalsError } = await supabase
+        .from("rentals")
+        .select("id, unit_id")
+        .eq("customer_id", customerId)
+        .eq("status", "active")
+      
+      if (rentalsError) throw new Error(`Failed to fetch customer rentals: ${rentalsError.message}`)
+      
+      // Update all related units to available and terminate rentals
+      for (const rental of activeRentals || []) {
+        const { error: unitError } = await supabase
+          .from("storage_units")
+          .update({ status: "available" })
+          .eq("id", rental.unit_id)
+        
+        if (unitError) {
+          console.warn(`Warning: Failed to update unit ${rental.unit_id}:`, unitError.message)
+        }
+        
+        const { error: rentalError } = await supabase
+          .from("rentals")
+          .update({ 
+            status: "terminated", 
+            end_date: new Date().toISOString().split("T")[0] 
+          })
+          .eq("id", rental.id)
+        
+        if (rentalError) {
+          console.warn(`Warning: Failed to terminate rental ${rental.id}:`, rentalError.message)
+        }
       }
+      
+      // Then delete the customer
+      const { error: deleteError } = await supabase
+        .from("customers")
+        .delete()
+        .eq("id", customerId)
+      
+      if (deleteError) throw new Error(`Failed to delete customer: ${deleteError.message}`)
+      
+      toast({
+        title: "Success",
+        description: `Successfully deleted ${customerData.first_name} ${customerData.last_name} and terminated ${activeRentals?.length || 0} active rentals`
+      })
+      
+      router.push("/units")
     } catch (error) {
+      console.error("Error deleting customer:", error)
       toast({
         title: "Error",
-        description: "Failed to delete customer",
+        description: error.message || "Failed to delete customer",
         variant: "destructive"
       })
     } finally {

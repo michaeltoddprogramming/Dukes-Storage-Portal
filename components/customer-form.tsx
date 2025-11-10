@@ -80,10 +80,10 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     e.preventDefault()
     
     // Validation
-    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.email.trim()) {
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields (first name, last name, and email)",
+        description: "Please fill in all required fields (first name and last name)",
         variant: "destructive"
       })
       return
@@ -108,10 +108,19 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     try {
       const supabase = createClient()
 
+      // If no email provided, generate a unique placeholder email
+      const customerData = { ...formData }
+      if (!customerData.email.trim()) {
+        // Generate unique email using timestamp and random number
+        const timestamp = Date.now()
+        const random = Math.floor(Math.random() * 10000)
+        customerData.email = `noemail.${timestamp}.${random}@dukes-storage.local`
+      }
+
       let result
       if (customer) {
         // Update existing customer
-        result = await supabase.from("customers").update(formData).eq("id", customer.id)
+        result = await supabase.from("customers").update(customerData).eq("id", customer.id)
         
         if (result.error) throw result.error
         
@@ -121,7 +130,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         })
       } else {
         // Create new customer
-        result = await supabase.from("customers").insert([formData]).select()
+        result = await supabase.from("customers").insert([customerData]).select()
 
         if (result.error) throw result.error
 
@@ -194,7 +203,20 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       
       let errorMessage = "An unexpected error occurred"
       
-      if (error.message?.includes("duplicate key")) {
+      // Check for Supabase error codes
+      if (error.code === "23505") {
+        // Unique constraint violation
+        if (error.details?.includes("email")) {
+          errorMessage = "A customer with this email already exists"
+        } else if (error.details?.includes("phone")) {
+          errorMessage = "A customer with this phone number already exists"
+        } else {
+          errorMessage = "This customer information already exists in the system"
+        }
+      } else if (error.code === "23514") {
+        // Check constraint violation
+        errorMessage = "Please check that all information is valid"
+      } else if (error.message?.includes("duplicate key")) {
         errorMessage = "A customer with this email already exists"
       } else if (error.message?.includes("violates check constraint")) {
         errorMessage = "Please check that all information is valid"
@@ -253,14 +275,17 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">Email (Optional)</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
+                  placeholder="Leave empty if not provided"
                 />
+                <p className="text-xs text-muted-foreground">
+                  If left empty, a placeholder email will be generated automatically
+                </p>
               </div>
 
               <div className="space-y-2">
