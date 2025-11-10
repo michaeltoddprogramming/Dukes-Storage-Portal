@@ -1,17 +1,20 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
 import { deleteUnit, terminateRental } from "@/app/actions/rental-actions"
-import { Edit, Trash2, Zap, User, UserPlus, X, Plus, Search } from "lucide-react"
+import { Edit, Trash2, Zap, User, UserPlus, X, Plus, Search, Filter, SlidersHorizontal, Grid3x3, LayoutList, DoorClosed, Maximize2, DollarSign, MapPin } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
 
 // Add formatCurrency function directly or ensure proper import
 const formatCurrency = (amount: number) => {
@@ -34,6 +37,16 @@ export function UnitsGrid() {
   const [searchResults, setSearchResults] = useState([])
   const [allCustomers, setAllCustomers] = useState([]) // Store all customers
   const [isSearching, setIsSearching] = useState(false)
+  
+  // New filter and view states - Following Miller's Law: chunked, digestible controls
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [sizeFilter, setSizeFilter] = useState("all")
+  const [priceRange, setPriceRange] = useState("all")
+  const [facilityFilter, setFacilityFilter] = useState("all")
+  const [hasElectricity, setHasElectricity] = useState("all")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [sortBy, setSortBy] = useState("unit_number")
   
   useEffect(() => {
     fetchUnits()
@@ -279,158 +292,531 @@ export function UnitsGrid() {
     setCustomerSearchTerm("")
   }
 
+  // Get unique facilities for filter
+  const facilities = useMemo(() => {
+    const uniqueFacilities = [...new Set(units.map(u => u.facilities?.name).filter(Boolean))]
+    return uniqueFacilities
+  }, [units])
+
+  // Filter and sort units - Following Fitts's Law with efficient filtering
+  const filteredAndSortedUnits = useMemo(() => {
+    let filtered = [...units]
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter(unit => 
+        unit.unit_number.toLowerCase().includes(query) ||
+        unit.size_category?.toLowerCase().includes(query) ||
+        unit.facilities?.name?.toLowerCase().includes(query) ||
+        unit.rentals?.some(r => 
+          r.customers?.first_name?.toLowerCase().includes(query) ||
+          r.customers?.last_name?.toLowerCase().includes(query) ||
+          r.customers?.email?.toLowerCase().includes(query)
+        )
+      )
+    }
+
+    // Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(unit => unit.status === statusFilter)
+    }
+
+    // Size filter
+    if (sizeFilter !== "all") {
+      filtered = filtered.filter(unit => unit.size_category === sizeFilter)
+    }
+
+    // Price range filter
+    if (priceRange !== "all") {
+      const ranges = {
+        "0-500": [0, 500],
+        "500-1000": [500, 1000],
+        "1000-1500": [1000, 1500],
+        "1500+": [1500, Infinity]
+      }
+      const [min, max] = ranges[priceRange] || [0, Infinity]
+      filtered = filtered.filter(unit => {
+        const rate = Number(unit.monthly_rate)
+        return rate >= min && rate < max
+      })
+    }
+
+    // Facility filter
+    if (facilityFilter !== "all") {
+      filtered = filtered.filter(unit => unit.facilities?.name === facilityFilter)
+    }
+
+    // Electricity filter
+    if (hasElectricity !== "all") {
+      const hasElec = hasElectricity === "yes"
+      filtered = filtered.filter(unit => unit.has_electricity === hasElec)
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "unit_number":
+          const aNum = Number.parseInt(a.unit_number.replace(/\D/g, "")) || 999
+          const bNum = Number.parseInt(b.unit_number.replace(/\D/g, "")) || 999
+          return aNum - bNum
+        case "price_low":
+          return Number(a.monthly_rate) - Number(b.monthly_rate)
+        case "price_high":
+          return Number(b.monthly_rate) - Number(a.monthly_rate)
+        case "size":
+          return (a.dimensions || "").localeCompare(b.dimensions || "")
+        case "status":
+          return a.status.localeCompare(b.status)
+        default:
+          return 0
+      }
+    })
+
+    return filtered
+  }, [units, searchQuery, statusFilter, sizeFilter, priceRange, facilityFilter, hasElectricity, sortBy])
+
+  // Get unique sizes for filter
+  const uniqueSizes = useMemo(() => {
+    return [...new Set(units.map(u => u.size_category).filter(Boolean))]
+  }, [units])
+
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">Loading units...</p>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading units...</p>
+        </div>
       </div>
     )
   }
 
   if (!units.length) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground mb-4">No storage units found</p>
+      <div className="text-center py-20">
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-6">
+          <Grid3x3 className="h-10 w-10 text-muted-foreground" />
+        </div>
+        <h3 className="text-2xl font-semibold mb-2">No Storage Units</h3>
+        <p className="text-muted-foreground mb-6">Get started by adding your first storage unit</p>
         <Link href="/units/new">
-          <Button>Add Your First Unit</Button>
+          <Button size="lg">
+            <Plus className="h-5 w-5 mr-2" />
+            Add Your First Unit
+          </Button>
         </Link>
       </div>
     )
   }
 
-  const sortedUnits = [...units].sort((a, b) => {
-    const aNum = Number.parseInt(a.unit_number.replace(/\D/g, "")) || 999
-    const bNum = Number.parseInt(b.unit_number.replace(/\D/g, "")) || 999
-    return aNum - bNum
-  })
-
   return (
     <>
-      <div className="grid gap-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
-        {sortedUnits.map((unit) => {
+      {/* Filters Section - Following Gestalt Principles: grouped related controls */}
+      <div className="space-y-6 mb-8">
+        {/* Search Bar - Fitts's Law: prominent, easy to access */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            placeholder="Search by unit number, size, facility, or customer name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-12 h-14 text-base shadow-sm border-2"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute right-2 top-1/2 -translate-y-1/2"
+              onClick={() => setSearchQuery("")}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
+        {/* Filter Controls - Miller's Law: 5-7 grouped options */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="h-5 w-5 text-primary" />
+                <CardTitle className="text-lg">Filters</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {filteredAndSortedUnits.length} of {units.length} units
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter("all")
+                    setSizeFilter("all")
+                    setPriceRange("all")
+                    setFacilityFilter("all")
+                    setHasElectricity("all")
+                    setSearchQuery("")
+                  }}
+                >
+                  Clear All
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {/* Status Filter */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Status
+                </Label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="available">Available</SelectItem>
+                    <SelectItem value="occupied">Occupied</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Size Filter */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Door Type
+                </Label>
+                <Select value={sizeFilter} onValueChange={setSizeFilter}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sizes</SelectItem>
+                    {uniqueSizes.map(size => (
+                      <SelectItem key={size} value={size} className="capitalize">
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Price Range Filter */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Price Range
+                </Label>
+                <Select value={priceRange} onValueChange={setPriceRange}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Prices</SelectItem>
+                    <SelectItem value="0-500">R0 - R500</SelectItem>
+                    <SelectItem value="500-1000">R500 - R1,000</SelectItem>
+                    <SelectItem value="1000-1500">R1,000 - R1,500</SelectItem>
+                    <SelectItem value="1500+">R1,500+</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Facility Filter */}
+              {facilities.length > 1 && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Facility
+                  </Label>
+                  <Select value={facilityFilter} onValueChange={setFacilityFilter}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Facilities</SelectItem>
+                      {facilities.map(facility => (
+                        <SelectItem key={facility} value={facility}>
+                          {facility}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Electricity Filter */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Electricity
+                </Label>
+                <Select value={hasElectricity} onValueChange={setHasElectricity}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Units</SelectItem>
+                    <SelectItem value="yes">With Electricity</SelectItem>
+                    <SelectItem value="no">Without</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Sort By */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Sort By
+                </Label>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unit_number">Unit Number</SelectItem>
+                    <SelectItem value="price_low">Price: Low to High</SelectItem>
+                    <SelectItem value="price_high">Price: High to Low</SelectItem>
+                    <SelectItem value="size">Size</SelectItem>
+                    <SelectItem value="status">Status</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* View Toggle & Results Summary */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">
+              Storage Units
+              {filteredAndSortedUnits.length !== units.length && (
+                <span className="text-muted-foreground ml-2">
+                  ({filteredAndSortedUnits.length} filtered)
+                </span>
+              )}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {filteredAndSortedUnits.filter(u => u.status === "available").length} available • 
+              {filteredAndSortedUnits.filter(u => u.status === "occupied").length} occupied
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={viewMode === "grid" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("grid")}
+              className="h-10 px-3"
+            >
+              <Grid3x3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="h-10 px-3"
+            >
+              <LayoutList className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Units Display */}
+      {filteredAndSortedUnits.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+            <Filter className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">No units match your filters</h3>
+          <p className="text-muted-foreground mb-4">Try adjusting your search criteria</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setStatusFilter("all")
+              setSizeFilter("all")
+              setPriceRange("all")
+              setFacilityFilter("all")
+              setHasElectricity("all")
+              setSearchQuery("")
+            }}
+          >
+            Clear All Filters
+          </Button>
+        </div>
+      ) : (
+        <div className={cn(
+          viewMode === "grid" 
+            ? "grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" 
+            : "space-y-4"
+        )}>
+          {filteredAndSortedUnits.map((unit) => {
           const activeRental = unit.rentals?.find((r) => r.status === "active")
           const customer = activeRental?.customers
 
           return (
-            <Card key={unit.id} className="relative overflow-hidden hover:shadow-md transition-shadow">
-              <CardHeader className="pb-1 px-3 pt-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-bold">{unit.unit_number}</CardTitle>
+            <Card 
+              key={unit.id} 
+              className={cn(
+                "relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-[1.02] border-2",
+                unit.status === "available" && "border-green-200/50 bg-gradient-to-br from-green-50/50 to-background",
+                unit.status === "occupied" && "border-blue-200/50 bg-gradient-to-br from-blue-50/50 to-background",
+                unit.status === "maintenance" && "border-red-200/50 bg-gradient-to-br from-red-50/50 to-background",
+                viewMode === "list" && "hover:scale-100"
+              )}
+            >
+              {/* Header */}
+              <CardHeader className={cn("pb-3", viewMode === "grid" ? "px-5 pt-5" : "px-6 pt-6")}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <CardTitle className="text-2xl font-bold mb-1 flex items-center gap-2">
+                      {unit.unit_number}
+                      {unit.has_electricity && (
+                        <div className="p-1 bg-yellow-100 rounded">
+                          <Zap className="h-3.5 w-3.5 text-yellow-600" />
+                        </div>
+                      )}
+                    </CardTitle>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      <span>{unit.facilities?.name || "Facility"}</span>
+                    </div>
+                  </div>
                   <Badge
                     variant={
                       unit.status === "available" ? "default" : unit.status === "occupied" ? "secondary" : "destructive"
                     }
-                    className="text-xs px-1 py-0"
+                    className="text-xs px-3 py-1 font-semibold"
                   >
-                    {unit.status === "available" ? "Free" : unit.status === "occupied" ? "Rented" : "Maint"}
+                    {unit.status === "available" ? "Available" : unit.status === "occupied" ? "Occupied" : "Maintenance"}
                   </Badge>
                 </div>
               </CardHeader>
 
-              <CardContent className="space-y-1 pt-0 px-3 pb-3">
-                <div className="text-xs space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Door:</span>
-                    <span className="font-medium capitalize">{unit.size_category}</span>
+              <CardContent className={cn("space-y-4", viewMode === "grid" ? "px-5 pb-5" : "px-6 pb-6")}>
+                {/* Unit Details - Gestalt: Grouped related information */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                    <DoorClosed className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase">Door Type</p>
+                      <p className="text-sm font-semibold capitalize">{unit.size_category}</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Size:</span>
-                    <span className="font-medium">{unit.dimensions}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Rate:</span>
-                    <span className="font-semibold text-green-600">{formatCurrency(unit.monthly_rate)}/mo</span>
+                  <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                    <Maximize2 className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase">Dimensions</p>
+                      <p className="text-sm font-semibold">{unit.dimensions}</p>
+                    </div>
                   </div>
                 </div>
 
-                {unit.has_electricity && (
-                  <div className="flex items-center gap-1 text-xs">
-                    <Zap className="h-3 w-3 text-yellow-500" />
-                    <span className="text-muted-foreground">Electricity</span>
+                {/* Price - Prominent display (Fitts's Law) */}
+                <div className="flex items-center gap-2 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="text-xs text-green-700 font-medium">Monthly Rate</p>
+                    <p className="text-xl font-bold text-green-900">{formatCurrency(unit.monthly_rate)}</p>
                   </div>
-                )}
+                </div>
 
+                {/* Customer/Rental Section */}
                 {customer ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded-md p-2 mt-2">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-1">
-                        <User className="h-3 w-3 text-blue-600" />
-                        <span className="text-xs font-medium text-blue-800">RENTED TO:</span>
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 border-2 border-blue-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-blue-600 rounded-lg">
+                          <User className="h-4 w-4 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase font-semibold text-blue-600">Current Tenant</p>
+                          <p className="text-sm font-bold text-blue-900">
+                            {customer.first_name} {customer.last_name}
+                          </p>
+                        </div>
                       </div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setRentalToUnlink({ 
                           id: activeRental.id, 
                           unitId: unit.id, 
                           unitNumber: unit.unit_number, 
                           customerName: `${customer.first_name} ${customer.last_name}` 
                         })}
-                        className="text-red-500 hover:text-red-700 focus:outline-none"
-                        title="Unlink customer"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                        title="Terminate rental"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                     
-                    <p className="text-xs font-semibold text-blue-900 truncate">
-                      {customer.first_name} {customer.last_name}
-                    </p>
-                    <p className="text-xs text-blue-700 truncate">{customer.email}</p>
-                    {customer.phone && (
-                      <p className="text-xs text-blue-700 truncate">{customer.phone}</p>
-                    )}
-                    
-                    <div className="mt-2 text-xs">
-                      <Link href={`/customers/${customer.id}`}>
-                        <Button variant="outline" size="sm" className="w-full h-6 text-xs">
-                          <Edit className="h-3 w-3 mr-1" />
-                          View Details
-                        </Button>
-                      </Link>
+                    <div className="space-y-1 text-sm text-blue-800">
+                      <p className="truncate flex items-center gap-2">
+                        <span className="text-xs text-blue-600">📧</span>
+                        {customer.email}
+                      </p>
+                      {customer.phone && (
+                        <p className="truncate flex items-center gap-2">
+                          <span className="text-xs text-blue-600">📞</span>
+                          {customer.phone}
+                        </p>
+                      )}
                     </div>
+                    
+                    <Link href={`/customers/${customer.id}`} className="block">
+                      <Button variant="outline" size="sm" className="w-full h-10 font-medium border-blue-300 hover:bg-blue-50">
+                        <User className="h-4 w-4 mr-2" />
+                        View Customer Details
+                      </Button>
+                    </Link>
                   </div>
                 ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-md p-2 mt-2">
-                    <div className="flex items-center justify-center mb-2">
-                      <span className="text-xs font-medium text-green-800">AVAILABLE</span>
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-4 space-y-3">
+                    <div className="flex items-center gap-2 justify-center text-green-700 mb-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-sm font-semibold uppercase tracking-wide">Ready to Rent</span>
                     </div>
                     
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="w-full h-6 text-xs bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                        className="w-full h-10 font-medium bg-white border-green-300 text-green-700 hover:bg-green-50"
                         onClick={() => setUnitToAssign(unit)}
                       >
-                        <UserPlus className="h-3 w-3 mr-1" />
-                        Assign Customer
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Assign Existing Customer
                       </Button>
                       <Link href={`/customers/new?unit=${unit.id}`} className="block">
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="w-full h-6 text-xs bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                          className="w-full h-10 font-medium bg-white border-green-300 text-green-700 hover:bg-green-50"
                         >
-                          <Plus className="h-3 w-3 mr-1" />
-                          New Customer
+                          <Plus className="h-4 w-4 mr-2" />
+                          Create New Customer
                         </Button>
                       </Link>
                     </div>
                   </div>
                 )}
 
-                <div className="flex gap-1 pt-1">
+                {/* Actions - Larger touch targets (Fitts's Law) */}
+                <div className="flex gap-2 pt-2">
                   <Link href={`/units/${unit.id}/edit`} className="flex-1">
-                    <Button variant="outline" size="sm" className="w-full h-6 text-xs bg-transparent px-1">
-                      <Edit className="h-3 w-3" />
+                    <Button variant="outline" size="sm" className="w-full h-10 font-medium">
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Unit
                     </Button>
                   </Link>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-destructive hover:text-destructive h-6 px-1 bg-transparent"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-10 px-4"
                     onClick={() => setUnitToDelete(unit)}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -443,7 +829,8 @@ export function UnitsGrid() {
             </Card>
           )
         })}
-      </div>
+        </div>
+      )}
 
       {/* Delete Unit Dialog */}
       <Dialog open={!!unitToDelete} onOpenChange={() => setUnitToDelete(null)}>

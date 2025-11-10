@@ -117,40 +117,62 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <Navigation userEmail={user.email} userName={adminUser.full_name} />
 
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-4 sm:px-6 py-4">
+      {/* Header Section - Following Fitts's Law with prominent, easy-to-target area */}
+      <div className="border-b bg-gradient-to-r from-card to-card/80 backdrop-blur-sm shadow-sm">
+        <div className="container mx-auto px-6 sm:px-8 py-6 sm:py-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">Welcome back, {adminUser.full_name}</p>
+            <div className="space-y-2">
+              <h1 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
+                Dashboard
+              </h1>
+              <p className="text-base sm:text-lg text-muted-foreground">
+                Welcome back, <span className="font-semibold text-foreground">{adminUser.full_name}</span>
+              </p>
             </div>
-            <div className="hidden sm:flex items-center gap-4">
-              <div className="text-sm text-muted-foreground">
-                {new Date().toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </div>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground bg-muted/50 px-4 py-2 rounded-lg border">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        <div className="grid gap-6 sm:gap-8">
-          {/* Dashboard Stats */}
-          <DashboardStats />
+      {/* Main Content - Following Miller's Law: chunking information into digestible groups */}
+      <div className="container mx-auto px-6 sm:px-8 py-8 sm:py-12">
+        <div className="space-y-10 sm:space-y-12">
+          {/* Stats Section - Gestalt Principle: Grouped related items */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+                Key Metrics
+              </h2>
+              <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
+                Live Data
+              </div>
+            </div>
+            <DashboardStats />
+          </section>
 
-          {/* Charts and Activity */}
-          <div className="grid gap-6 sm:gap-8 lg:grid-cols-2">
-            <UnitOccupancyChart />
-            <RecentActivity />
-          </div>
+          {/* Charts and Activity Section - Visual Hierarchy */}
+          <section className="space-y-4">
+            <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+              Insights & Activity
+            </h2>
+            <div className="grid gap-6 sm:gap-8 lg:grid-cols-2">
+              <UnitOccupancyChart />
+              <RecentActivity />
+            </div>
+          </section>
         </div>
       </div>
     </div>
