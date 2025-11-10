@@ -116,68 +116,87 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
   }
 
   return (
-    <div className="space-y-6">
-      {/* Calendar Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Payment Calendar</h2>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigateMonth("prev")}>
-            <ChevronLeft className="h-4 w-4" />
+    <div className="space-y-8">
+      {/* Calendar Header - Enhanced with better visual hierarchy */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border-2 border-border/50 rounded-xl p-6 shadow-lg">
+        <h2 className="text-3xl font-bold tracking-tight">Payment Calendar</h2>
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="outline" 
+            size="lg" 
+            onClick={() => navigateMonth("prev")}
+            className="h-11 w-11 p-0"
+          >
+            <ChevronLeft className="h-5 w-5" />
           </Button>
-          <span className="text-sm font-medium px-4">
-            {months[2].toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-          </span>
-          <Button variant="outline" size="sm" onClick={() => navigateMonth("next")}>
-            <ChevronRight className="h-4 w-4" />
+          <div className="min-w-[200px] text-center">
+            <span className="text-lg font-semibold">
+              {months[2].toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            </span>
+          </div>
+          <Button 
+            variant="outline" 
+            size="lg" 
+            onClick={() => navigateMonth("next")}
+            className="h-11 w-11 p-0"
+          >
+            <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-          <span>Paid</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-          <span>Missed</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-          <span>Pending</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
-          <span>Future</span>
-        </div>
-      </div>
+      {/* Legend - Enhanced with card design */}
+      <Card className="border-2">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-6 text-sm">
+            <span className="font-semibold text-muted-foreground">Status Legend:</span>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500 rounded-full shadow-sm"></div>
+              <span className="font-medium">Paid</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-red-500 rounded-full shadow-sm"></div>
+              <span className="font-medium">Missed</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-yellow-500 rounded-full shadow-sm"></div>
+              <span className="font-medium">Pending</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-gray-300 rounded-full shadow-sm"></div>
+              <span className="font-medium">Future</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Calendar Grid */}
-      <Card>
-        <CardHeader>
+      {/* Calendar Grid - Enhanced with better styling */}
+      <Card className="border-2 shadow-xl">
+        <CardHeader className="bg-gradient-to-r from-muted/30 to-muted/10 border-b-2">
           <div className="grid grid-cols-4 gap-4">
-            <div className="font-semibold">Customer / Unit</div>
+            <div className="font-bold text-base">Customer / Unit</div>
             {months.map((month, index) => (
-              <div key={index} className="font-semibold text-center">
+              <div key={index} className="font-bold text-base text-center">
                 {month.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
               </div>
             ))}
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-1 p-6">
           {rentals.map((rental) => (
             <div
               key={rental.id}
-              className="grid grid-cols-4 gap-4 items-center py-3 border-b border-border/50 last:border-0"
+              className="grid grid-cols-4 gap-4 items-center py-4 px-2 border-b border-border/50 last:border-0 hover:bg-muted/30 rounded-lg transition-colors"
             >
-              {/* Customer Info */}
-              <div className="space-y-1">
-                <div className="font-medium">
+              {/* Customer Info - Enhanced with better hierarchy */}
+              <div className="space-y-1.5">
+                <div className="font-semibold text-base">
                   {rental.customers.first_name} {rental.customers.last_name}
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  Unit {rental.storage_units.unit_number} • ${rental.storage_units.monthly_rate}/mo
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Unit {rental.storage_units.unit_number}</span>
+                  <span>•</span>
+                  <span className="font-semibold text-primary">${rental.storage_units.monthly_rate}/mo</span>
                 </div>
               </div>
 
@@ -191,38 +210,41 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
                 return (
                   <div key={monthIndex} className="flex items-center justify-center">
                     {isFuture ? (
-                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                        <Clock className="h-4 w-4 text-gray-400" />
+                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center shadow-sm">
+                        <Clock className="h-5 w-5 text-gray-400" />
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         {status === "paid" ? (
-                          <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                            <Check className="h-4 w-4 text-white" />
+                          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-md">
+                            <Check className="h-5 w-5 text-white" />
                           </div>
                         ) : status === "missed" ? (
-                          <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
-                            <X className="h-4 w-4 text-white" />
+                          <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center shadow-md">
+                            <X className="h-5 w-5 text-white" />
                           </div>
                         ) : (
-                          <div className="flex gap-1">
+                          <div className="flex gap-2">
+                            {/* Fitts's Law: Larger touch targets (h-10 = 40px, close to 44px minimum) */}
                             <Button
                               size="sm"
                               variant="outline"
-                              className="w-8 h-8 p-0 hover:bg-green-50 hover:border-green-300 bg-transparent"
+                              className="w-10 h-10 p-0 hover:bg-green-50 hover:border-green-400 hover:shadow-md bg-transparent border-2 transition-all"
                               onClick={() => handleMarkPayment(rental.id, month, "paid")}
                               disabled={isProcessing}
+                              title="Mark as Paid"
                             >
-                              <Check className="h-4 w-4 text-green-600" />
+                              <Check className="h-5 w-5 text-green-600" />
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="w-8 h-8 p-0 hover:bg-red-50 hover:border-red-300 bg-transparent"
+                              className="w-10 h-10 p-0 hover:bg-red-50 hover:border-red-400 hover:shadow-md bg-transparent border-2 transition-all"
                               onClick={() => handleMarkPayment(rental.id, month, "missed")}
                               disabled={isProcessing}
+                              title="Mark as Missed"
                             >
-                              <X className="h-4 w-4 text-red-600" />
+                              <X className="h-5 w-5 text-red-600" />
                             </Button>
                           </div>
                         )}
@@ -236,40 +258,55 @@ export function CalendarPaymentTracker({ rentals, payments }: CalendarPaymentTra
         </CardContent>
       </Card>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Summary Stats - Enhanced with better visual design */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {months.map((month, index) => {
           const monthPayments = rentals.map((r) => getPaymentStatus(r.id, month))
           const paid = monthPayments.filter((s) => s === "paid").length
           const missed = monthPayments.filter((s) => s === "missed").length
           const pending = monthPayments.filter((s) => s === "pending").length
           const total = rentals.length
+          const paidPercent = total > 0 ? Math.round((paid / total) * 100) : 0
 
           return (
-            <Card key={index}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">
+            <Card key={index} className="border-2 shadow-lg hover:shadow-xl transition-all duration-300">
+              <CardHeader className="pb-4 bg-gradient-to-br from-muted/30 to-muted/10">
+                <CardTitle className="text-lg font-bold">
                   {month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                 </CardTitle>
+                <p className="text-sm text-muted-foreground">Payment Summary</p>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Paid:</span>
-                  <Badge variant="secondary" className="bg-green-100 text-green-800">
+              <CardContent className="space-y-3 pt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Paid:</span>
+                  <Badge variant="secondary" className="bg-gradient-to-r from-green-100 to-green-50 text-green-800 border border-green-200 px-3 py-1 text-sm font-semibold">
                     {paid}/{total}
                   </Badge>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Missed:</span>
-                  <Badge variant="secondary" className="bg-red-100 text-red-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Missed:</span>
+                  <Badge variant="secondary" className="bg-gradient-to-r from-red-100 to-red-50 text-red-800 border border-red-200 px-3 py-1 text-sm font-semibold">
                     {missed}/{total}
                   </Badge>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span>Pending:</span>
-                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium">Pending:</span>
+                  <Badge variant="secondary" className="bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-800 border border-yellow-200 px-3 py-1 text-sm font-semibold">
                     {pending}/{total}
                   </Badge>
+                </div>
+                {/* Progress bar */}
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between text-xs font-semibold mb-1">
+                    <span>Completion Rate</span>
+                    <span className="text-primary">{paidPercent}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-green-500 to-green-600 h-2.5 rounded-full transition-all duration-500"
+                      style={{ width: `${paidPercent}%` }}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

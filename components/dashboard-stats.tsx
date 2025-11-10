@@ -96,11 +96,22 @@ export function DashboardStats() {
         // Get overdue payments (payments expected but not received)
         const { data: allRentals } = await supabase
           .from("rentals")
-          .select("next_payment_date")
+          .select("id, start_date")
           .eq("status", "active")
 
+        // Calculate overdue rentals based on start_date
+        // Payment is due monthly on the same day as start_date
         const overdueCount = allRentals?.filter(rental => {
-          const nextPaymentDate = new Date(rental.next_payment_date)
+          const startDate = new Date(rental.start_date)
+          const currentDate = new Date()
+          
+          // Calculate the next payment date
+          const nextPaymentDate = new Date(startDate)
+          nextPaymentDate.setMonth(currentDate.getMonth())
+          nextPaymentDate.setFullYear(currentDate.getFullYear())
+          
+          // If the payment date for this month has passed, it's overdue
+          // (This is a simple calculation - you may want to check against actual payments table)
           return nextPaymentDate < now
         }).length || 0
 

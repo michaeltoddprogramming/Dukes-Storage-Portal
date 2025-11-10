@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "@/hooks/use-toast"
-import { terminateRental, deleteCustomer } from "@/app/actions/rental-actions"
+import { deleteCustomer } from "@/app/actions/rental-actions"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 import { ArrowLeft, Edit, Phone, Mail, Trash2, X, Plus, Calendar } from "lucide-react"
@@ -83,26 +83,67 @@ export function CustomerDetails({ customerId }: { customerId: string }) {
   const handleUnlinkRental = async (rentalId) => {
     setIsUnlinking(true)
     try {
-      const result = await terminateRental(rentalId)
-      if (result.success) {
-        toast({
-          title: "Success",
-          description: "Unit unlinked from customer"
+      const supabase = createClient()
+      
+      // Get rental details first
+      const { data: rental, error: rentalFetchError } = await supabase
+        .from("rentals")
+        .select("unit_id, customer_id")
+        .eq("id", rentalId)
+        .single()
+      
+      if (rentalFetchError) throw new Error(`Failed to fetch rental: ${rentalFetchError.message}`)
+      if (!rental) throw new Error("Rental not found")
+      
+      // Update rental status to terminated
+      const { error: updateError } = await supabase
+        .from("rentals")
+        .update({
+          status: "terminated",
+          end_date: new Date().toISOString().split("T")[0]
         })
+        .eq("id", rentalId)
         
-        // Update local state - mark rental as terminated
-        setRentals(rentals.map(rental => 
-          rental.id === rentalId 
-            ? { ...rental, status: "terminated", end_date: new Date().toISOString().split("T")[0] } 
-            : rental
-        ))
-      } else {
-        throw new Error("Failed to unlink unit")
+      if (updateError) throw new Error(`Failed to terminate rental: ${updateError.message}`)
+      
+      // Check if there are other active rentals for this unit
+      const { data: otherRentals, error: otherRentalsError } = await supabase
+        .from("rentals")
+        .select("id")
+        .eq("unit_id", rental.unit_id)
+        .eq("status", "active")
+        .neq("id", rentalId)
+      
+      if (otherRentalsError) {
+        console.warn("Warning: Could not check for other rentals:", otherRentalsError.message)
       }
+      
+      // Only update unit status if no other active rentals exist
+      if (!otherRentals?.length) {
+        const { error: unitUpdateError } = await supabase
+          .from("storage_units")
+          .update({ status: "available" })
+          .eq("id", rental.unit_id)
+        
+        if (unitUpdateError) throw new Error(`Failed to update unit status: ${unitUpdateError.message}`)
+      }
+      
+      toast({
+        title: "Success",
+        description: "Unit unlinked from customer"
+      })
+      
+      // Update local state - mark rental as terminated
+      setRentals(rentals.map(rental => 
+        rental.id === rentalId 
+          ? { ...rental, status: "terminated", end_date: new Date().toISOString().split("T")[0] } 
+          : rental
+      ))
     } catch (error) {
+      console.error("Error unlinking rental:", error)
       toast({
         title: "Error",
-        description: "Failed to unlink unit",
+        description: error.message || "Failed to unlink unit",
         variant: "destructive"
       })
     } finally {

@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "@/hooks/use-toast"
-import { deleteUnit, terminateRental } from "@/app/actions/rental-actions"
 import { Edit, Trash2, Zap, User, UserPlus, X, Plus, Search, Filter, SlidersHorizontal, Grid3x3, LayoutList, DoorClosed, Maximize2, DollarSign, MapPin } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -33,10 +32,12 @@ export function UnitsGrid() {
   const [isUnlinking, setIsUnlinking] = useState(false)
   const [rentalToUnlink, setRentalToUnlink] = useState(null)
   const [unitToAssign, setUnitToAssign] = useState(null)
+  const [unitToChange, setUnitToChange] = useState(null) // For changing customer directly
   const [customerSearchTerm, setCustomerSearchTerm] = useState("")
   const [searchResults, setSearchResults] = useState([])
   const [allCustomers, setAllCustomers] = useState([]) // Store all customers
   const [isSearching, setIsSearching] = useState(false)
+  const [isChangingCustomer, setIsChangingCustomer] = useState(false)
   
   // New filter and view states - Following Miller's Law: chunked, digestible controls
   const [searchQuery, setSearchQuery] = useState("")
@@ -157,17 +158,36 @@ export function UnitsGrid() {
     })
     
     try {
-      const result = await deleteUnit(unitId)
+      const supabase = createClient()
       
-      if (result.success) {
-        toast({
-          title: "Unit Deleted Successfully",
-          description: `Unit ${unitToDelete?.unit_number} has been permanently deleted`,
-        })
-        setUnits(units.filter(unit => unit.id !== unitId))
-      } else {
-        throw new Error(result.error?.message || "Failed to delete unit")
+      // Check if unit has any active rentals
+      const { data: activeRentals, error: rentalCheckError } = await supabase
+        .from("rentals")
+        .select("id")
+        .eq("unit_id", unitId)
+        .eq("status", "active")
+      
+      if (rentalCheckError) throw new Error(`Failed to check rentals: ${rentalCheckError.message}`)
+      
+      if (activeRentals && activeRentals.length > 0) {
+        throw new Error("Cannot delete unit with active rentals. Please terminate all rentals first.")
       }
+      
+      // Delete the unit
+      const { error: deleteError } = await supabase
+        .from("storage_units")
+        .delete()
+        .eq("id", unitId)
+      
+      if (deleteError) throw new Error(`Failed to delete unit: ${deleteError.message}`)
+      
+      toast({
+        title: "Unit Deleted Successfully",
+        description: `Unit ${unitToDelete?.unit_number} has been permanently deleted`,
+      })
+      
+      // Refresh the units list
+      await fetchUnits()
     } catch (error) {
       console.error("Error deleting unit:", error)
       toast({
@@ -191,32 +211,58 @@ export function UnitsGrid() {
     })
     
     try {
-      const result = await terminateRental(rentalId)
+      const supabase = createClient()
       
-      if (result.success) {
-        toast({
-          title: "Customer Unlinked Successfully",
-          description: `Customer has been removed from ${rentalToUnlink?.unitNumber}. Unit is now available.`,
+      // Get rental details first
+      const { data: rental, error: rentalFetchError } = await supabase
+        .from("rentals")
+        .select("unit_id, customer_id")
+        .eq("id", rentalId)
+        .single()
+      
+      if (rentalFetchError) throw new Error(`Failed to fetch rental: ${rentalFetchError.message}`)
+      if (!rental) throw new Error("Rental not found")
+      
+      // Update rental status to terminated
+      const { error: updateError } = await supabase
+        .from("rentals")
+        .update({
+          status: "terminated",
+          end_date: new Date().toISOString().split("T")[0]
         })
+        .eq("id", rentalId)
         
-        // Update local state
-        setUnits(units.map(unit => {
-          if (unit.id === unitId) {
-            return {
-              ...unit,
-              status: "available",
-              rentals: unit.rentals.map(rental => 
-                rental.id === rentalId 
-                  ? { ...rental, status: "terminated" } 
-                  : rental
-              )
-            }
-          }
-          return unit
-        }))
-      } else {
-        throw new Error(result.error?.message || "Failed to unlink customer")
+      if (updateError) throw new Error(`Failed to terminate rental: ${updateError.message}`)
+      
+      // Check if there are other active rentals for this unit
+      const { data: otherRentals, error: otherRentalsError } = await supabase
+        .from("rentals")
+        .select("id")
+        .eq("unit_id", rental.unit_id)
+        .eq("status", "active")
+        .neq("id", rentalId)
+      
+      if (otherRentalsError) {
+        console.warn("Warning: Could not check for other rentals:", otherRentalsError.message)
       }
+      
+      // Only update unit status if no other active rentals exist
+      if (!otherRentals?.length) {
+        const { error: unitUpdateError } = await supabase
+          .from("storage_units")
+          .update({ status: "available" })
+          .eq("id", rental.unit_id)
+        
+        if (unitUpdateError) throw new Error(`Failed to update unit status: ${unitUpdateError.message}`)
+      }
+      
+      toast({
+        title: "Customer Unlinked Successfully",
+        description: `Customer has been removed from ${rentalToUnlink?.unitNumber}. Unit is now available.`,
+      })
+      
+      // Refresh the units list
+      await fetchUnits()
     } catch (error) {
       console.error("Error unlinking rental:", error)
       toast({
@@ -227,6 +273,70 @@ export function UnitsGrid() {
     } finally {
       setIsUnlinking(false)
       setRentalToUnlink(null)
+      loadingToast.dismiss()
+    }
+  }
+  
+  const handleChangeCustomer = async (newCustomerId, unitId, oldRentalId) => {
+    setIsChangingCustomer(true)
+    
+    const loadingToast = toast({
+      title: "Changing Customer...",
+      description: "Terminating old rental and creating new one",
+    })
+    
+    try {
+      const supabase = createClient()
+      
+      // Step 1: Terminate the old rental
+      const { error: terminateError } = await supabase
+        .from("rentals")
+        .update({ 
+          status: "terminated",
+          end_date: new Date().toISOString().split("T")[0]
+        })
+        .eq("id", oldRentalId)
+      
+      if (terminateError) throw terminateError
+      
+      // Step 2: Create new rental with the new customer
+      const { error: rentalError } = await supabase.from("rentals").insert([{
+        customer_id: newCustomerId,
+        unit_id: unitId,
+        start_date: new Date().toISOString().split("T")[0],
+        monthly_rate: unitToChange.monthly_rate,
+        status: "active"
+      }])
+      
+      if (rentalError) throw rentalError
+      
+      // Step 3: Update unit status (keep as occupied)
+      const { error: unitError } = await supabase
+        .from("storage_units")
+        .update({ status: "occupied" })
+        .eq("id", unitId)
+      
+      if (unitError) throw unitError
+      
+      toast({
+        title: "Customer Changed Successfully",
+        description: `Unit ${unitToChange.unit_number} has been reassigned to the new customer`,
+      })
+      
+      // Refresh the units list
+      await fetchUnits()
+      setUnitToChange(null)
+      setCustomerSearchTerm("")
+      
+    } catch (error) {
+      console.error("Error changing customer:", error)
+      toast({
+        title: "Change Failed",
+        description: error.message || "Could not change customer. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsChangingCustomer(false)
       loadingToast.dismiss()
     }
   }
@@ -735,20 +845,37 @@ export function UnitsGrid() {
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setRentalToUnlink({ 
-                          id: activeRental.id, 
-                          unitId: unit.id, 
-                          unitNumber: unit.unit_number, 
-                          customerName: `${customer.first_name} ${customer.last_name}` 
-                        })}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
-                        title="Terminate rental"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setUnitToChange({
+                            id: unit.id,
+                            unit_number: unit.unit_number,
+                            monthly_rate: unit.monthly_rate,
+                            oldRentalId: activeRental.id,
+                            oldCustomerName: `${customer.first_name} ${customer.last_name}`
+                          })}
+                          className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                          title="Change customer"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setRentalToUnlink({ 
+                            id: activeRental.id, 
+                            unitId: unit.id, 
+                            unitNumber: unit.unit_number, 
+                            customerName: `${customer.first_name} ${customer.last_name}` 
+                          })}
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                          title="Terminate rental"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                     
                     <div className="space-y-1 text-sm text-blue-800">
@@ -962,6 +1089,98 @@ export function UnitsGrid() {
           
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseAssignDialog}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Customer Dialog */}
+      <Dialog open={!!unitToChange} onOpenChange={() => {
+        setUnitToChange(null)
+        setCustomerSearchTerm("")
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Customer for Unit {unitToChange?.unit_number}</DialogTitle>
+            <DialogDescription>
+              Current customer: <strong>{unitToChange?.oldCustomerName}</strong>
+              <br />
+              Select a new customer to replace them. The old rental will be terminated automatically.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Search customers by name or email..." 
+                value={customerSearchTerm}
+                onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            {isSearching ? (
+              <div className="text-center p-4">
+                <p className="text-muted-foreground">Loading customers...</p>
+              </div>
+            ) : searchResults.length > 0 ? (
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  {customerSearchTerm 
+                    ? `${searchResults.length} customer${searchResults.length === 1 ? '' : 's'} found:` 
+                    : `${searchResults.length} total customer${searchResults.length === 1 ? '' : 's'}:`
+                  }
+                </p>
+                {searchResults.map((customer) => (
+                  <Card key={customer.id} className="cursor-pointer hover:bg-accent transition-colors">
+                    <div className="flex items-center justify-between p-3">
+                      <div className="space-y-1 flex-1">
+                        <p className="text-sm font-semibold">{customer.first_name} {customer.last_name}</p>
+                        <p className="text-xs text-muted-foreground">{customer.email}</p>
+                        {customer.phone && (
+                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                        )}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleChangeCustomer(customer.id, unitToChange.id, unitToChange.oldRentalId)}
+                        disabled={isChangingCustomer}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {isChangingCustomer ? "Changing..." : "Select"}
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center p-4">
+                <p className="text-muted-foreground mb-4">
+                  {allCustomers.length === 0 
+                    ? "No customers found in the system" 
+                    : "No customers match your search"
+                  }
+                </p>
+              </div>
+            )}
+            
+            <div className="flex justify-center pt-4 border-t">
+              <Link href={`/customers/new?unit=${unitToChange?.id}`} className="w-full">
+                <Button variant="outline" className="w-full">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Customer
+                </Button>
+              </Link>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setUnitToChange(null)
+              setCustomerSearchTerm("")
+            }}>
               Cancel
             </Button>
           </DialogFooter>
